@@ -213,7 +213,12 @@ async function entrar(){
     return;
   }
   if(su && su.session) return; // creada con sesión activa -> boot
-  lerr('Cuenta creada. Revisa tu correo para confirmarla y vuelve a entrar.');
+  // sin sesión inmediata: la cuenta ya queda confirmada, iniciamos sesión al tiro
+  if(btn){btn.disabled=true;btn.textContent='Entrando…';}
+  let { error:e2 } = await sb.auth.signInWithPassword({ email, password:pass });
+  if(btn){btn.disabled=false;btn.textContent='Entrar';}
+  if(!e2) return;
+  lerr('Cuenta creada. Intenta entrar de nuevo en unos segundos.');
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
 

@@ -77,9 +77,9 @@
   .btn.primary{background:var(--pitch);color:#fff}.btn.send{background:var(--ink);color:var(--gold)}
   .btn:disabled{opacity:.45;box-shadow:none}
   .ranktable{width:100%;border-collapse:collapse}
-  .ranktable th{font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:12px;color:var(--muted);text-align:right;padding:10px 8px;border-bottom:1px solid var(--line)}
+  .ranktable th{font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:11px;color:var(--muted);text-align:right;padding:10px 5px;border-bottom:1px solid var(--line)}
   .ranktable th:first-child,.ranktable th:nth-child(2){text-align:left}
-  .ranktable td{padding:12px 8px;border-bottom:1px solid var(--line);text-align:right;font-size:14px}
+  .ranktable td{padding:11px 5px;border-bottom:1px solid var(--line);text-align:right;font-size:14px}
   .ranktable td:nth-child(2){text-align:left;font-weight:600}
   .ranktable .pts{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px}
   .ranktable tr.me{background:rgba(255,200,61,.14)}
@@ -407,14 +407,14 @@ async function loadTabla(){
   if(rows.length===0) return paint(emptyState('🏅','Tabla vacía','Cuando se carguen resultados verás el ranking de la familia.'));
   let pos=0;
   let h='<div class="section-head"><div><div class="eyebrow">Clasificación</div><h2>Tabla general</h2></div></div>';
-  h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Partidos</th><th>Bonus</th><th>Total</th></tr></thead><tbody>';
+  h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ pos++; const me=r.id===S.me.id; const g=pos===1?'g1':pos===2?'g2':pos===3?'g3':'';
     h+='<tr class="'+(me?'me':'')+'"><td><span class="pos-badge '+g+'">'+pos+'</span></td>'
       +'<td>'+esc(r.name)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+'</td>'
-      +'<td class="tnum">'+(r.pts_matches||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
+      +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Desempate por marcadores exactos.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Gru = fase de grupos · Eli = eliminatorias · Ext = extras (goleador, MVP, finalistas). Desempate por marcadores exactos.</p>';
   paint(h);
 }
 

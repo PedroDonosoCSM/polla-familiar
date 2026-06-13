@@ -418,37 +418,67 @@ async function loadTabla(){
   paint(h);
 }
 
+function resRow(r, live){
+  const hh=teamOf(r,'home'),aa=teamOf(r,'away');
+  const scStyle = live ? ' style="background:var(--hot)"' : '';
+  let h='<div class="res-item" style="border-bottom:1px solid var(--line)">'
+    +'<div class="res-row" style="cursor:pointer;border-bottom:none" onclick="toggleApuestas('+r.id+')">'
+    +'<div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'
+    +'<div class="res-score tnum"'+scStyle+'>'+(r.home_goals??0)+'–'+(r.away_goals??0)+'</div>'
+    +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+' <span style="color:var(--muted);font-size:11px">▾</span></div></div>';
+  if(live) h+='<div class="scorers" style="color:var(--hot);font-weight:600">⏱ '+esc(r.live_clock||'En juego')+'</div>';
+  else { const sc=[r.home_scorers,r.away_scorers].filter(Boolean).join('  •  '); if(sc) h+='<div class="scorers">⚽ '+esc(sc)+'</div>'; }
+  h+='<div id="det-'+r.id+'"></div></div>';
+  return h;
+}
 async function loadResultados(){
   const { data } = await sb.from('matches').select(MATCH_COLS).in('status',['EN_JUEGO','FINALIZADO']).order('id');
   const all=data||[];
   const live=all.filter(r=>r.status==='EN_JUEGO');
   const rows=all.filter(r=>r.status==='FINALIZADO');
   if(live.length===0 && rows.length===0) return paint(emptyState('📊','Sin resultados aún','Los marcadores aparecen aquí cuando empiezan los partidos.'));
-  let h='<div class="section-head"><div><div class="eyebrow">Marcadores</div><h2>Resultados</h2></div></div>';
+  let h='<div class="section-head"><div><div class="eyebrow">Marcadores</div><h2>Resultados</h2></div></div>'
+    +'<p class="muted" style="font-size:12px;margin:-6px 2px 12px">Toca un partido para ver los pronósticos de todos y cómo les fue.</p>';
   if(live.length){
     h+='<div class="eyebrow" style="margin:4px 2px 8px;color:var(--hot)">🔴 En vivo</div><div class="card" style="border-color:var(--hot)">';
-    live.forEach(r=>{ const hh=teamOf(r,'home'),aa=teamOf(r,'away');
-      h+='<div class="res-row"><div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'
-        +'<div class="res-score tnum" style="background:var(--hot)">'+ (r.home_goals??0) +'–'+ (r.away_goals??0) +'</div>'
-        +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+'</div></div>'
-        +'<div class="scorers" style="color:var(--hot);font-weight:600">⏱ '+esc(r.live_clock||'En juego')+'</div>';
-    });
+    live.forEach(r=>{ h+=resRow(r,true); });
     h+='</div>';
   }
   const byF={}; rows.forEach(r=>{(byF[r.phase]=byF[r.phase]||[]).push(r);});
   FASE_ORDER.forEach(f=>{ if(!byF[f])return;
     h+='<div class="eyebrow" style="margin:16px 2px 8px">'+esc(S.phases[f]?.label||f)+'</div><div class="card">';
-    byF[f].forEach(r=>{ const hh=teamOf(r,'home'),aa=teamOf(r,'away');
-      h+='<div class="res-row"><div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'
-        +'<div class="res-score tnum">'+r.home_goals+'–'+r.away_goals+'</div>'
-        +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+'</div></div>';
-      const sc=[r.home_scorers,r.away_scorers].filter(Boolean).join('  •  ');
-      if(sc)h+='<div class="scorers">⚽ '+esc(sc)+'</div>';
-    });
+    byF[f].forEach(r=>{ h+=resRow(r,false); });
     h+='</div>';
   });
   if(live.length) h+='<p class="muted center" style="font-size:12px;margin-top:10px">La tabla suma el marcador en vivo; queda firme cuando termina el partido.</p>';
   paint(h);
+  if(S.openBet){ const b=document.getElementById('det-'+S.openBet); if(b) toggleApuestas(S.openBet); }
+}
+async function toggleApuestas(id){
+  const box=document.getElementById('det-'+id);
+  if(!box) return;
+  if(box.dataset.open==='1'){ box.innerHTML=''; box.dataset.open=''; S.openBet=null; return; }
+  box.dataset.open='1'; S.openBet=id;
+  box.innerHTML='<div class="loader" style="padding:16px"><div class="spin"></div></div>';
+  const { data } = await sb.from('predictions')
+    .select('home_goals,away_goals,points,is_exact,participant:participant_id(name)')
+    .eq('match_id',id);
+  let ps=(data||[]).slice().sort((a,b)=>(b.points-a.points)||((b.is_exact?1:0)-(a.is_exact?1:0)));
+  if(ps.length===0){ box.innerHTML='<div class="muted" style="padding:12px 14px;font-size:13px">Aún no se pueden ver los pronósticos (se revelan al cerrar la fase de grupos).</div>'; return; }
+  let h='<div style="padding:6px 14px 14px;background:#FBFCFB">';
+  ps.forEach(p=>{
+    const tag = p.is_exact
+      ? '<span style="font-size:10px;font-weight:700;color:#0C7A48;background:rgba(21,182,110,.16);padding:2px 7px;border-radius:999px">EXACTO</span>'
+      : (p.points>0 ? '<span style="font-size:10px;font-weight:700;color:#8A6300;background:rgba(255,200,61,.22);padding:2px 7px;border-radius:999px">GANADOR</span>'
+                    : '<span style="font-size:10px;color:var(--muted)">—</span>');
+    h+='<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-top:1px solid var(--line);font-size:13px">'
+      +'<span style="flex:1;font-weight:600">'+esc(p.participant?.name||'?')+'</span>'
+      +'<span class="tnum" style="width:46px;text-align:center">'+p.home_goals+'–'+p.away_goals+'</span>'
+      +'<span class="tnum" style="width:34px;text-align:right;font-weight:700;color:var(--ink)">+'+p.points+'</span>'
+      +'<span style="width:64px;text-align:right">'+tag+'</span></div>';
+  });
+  h+='</div>';
+  box.innerHTML=h;
 }
 
 async function loadTodos(){

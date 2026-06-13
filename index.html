@@ -418,39 +418,62 @@ async function loadTabla(){
   paint(h);
 }
 
-function resRow(r, live){
+function resRow(r, mode){
   const hh=teamOf(r,'home'),aa=teamOf(r,'away');
-  const scStyle = live ? ' style="background:var(--hot)"' : '';
+  let center;
+  if(mode==='next') center='<div style="font-family:\'Barlow Condensed\',sans-serif;font-weight:600;font-size:12px;color:var(--muted);text-align:center;line-height:1.15;min-width:70px">'+esc(fmtFecha(r.kickoff_at)||'Por definir')+'</div>';
+  else center='<div class="res-score tnum"'+(mode==='live'?' style="background:var(--hot)"':'')+'>'+(r.home_goals??0)+'–'+(r.away_goals??0)+'</div>';
   let h='<div class="res-item" style="border-bottom:1px solid var(--line)">'
     +'<div class="res-row" style="cursor:pointer;border-bottom:none" onclick="toggleApuestas('+r.id+')">'
-    +'<div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'
-    +'<div class="res-score tnum"'+scStyle+'>'+(r.home_goals??0)+'–'+(r.away_goals??0)+'</div>'
+    +'<div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'+center
     +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+' <span style="color:var(--muted);font-size:11px">▾</span></div></div>';
-  if(live) h+='<div class="scorers" style="color:var(--hot);font-weight:600">⏱ '+esc(r.live_clock||'En juego')+'</div>';
-  else { const sc=[r.home_scorers,r.away_scorers].filter(Boolean).join('  •  '); if(sc) h+='<div class="scorers">⚽ '+esc(sc)+'</div>'; }
+  if(mode==='live') h+='<div class="scorers" style="color:var(--hot);font-weight:600">⏱ '+esc(r.live_clock||'En juego')+'</div>';
+  else if(mode==='fin'){ const sc=[r.home_scorers,r.away_scorers].filter(Boolean).join('  •  '); if(sc) h+='<div class="scorers">⚽ '+esc(sc)+'</div>'; }
   h+='<div id="det-'+r.id+'"></div></div>';
   return h;
 }
+function modeOf(r){ return r.status==='EN_JUEGO'?'live':(r.status==='FINALIZADO'?'fin':'next'); }
 async function loadResultados(){
-  const { data } = await sb.from('matches').select(MATCH_COLS).in('status',['EN_JUEGO','FINALIZADO']).order('id');
-  const all=data||[];
-  const live=all.filter(r=>r.status==='EN_JUEGO');
-  const rows=all.filter(r=>r.status==='FINALIZADO');
-  if(live.length===0 && rows.length===0) return paint(emptyState('📊','Sin resultados aún','Los marcadores aparecen aquí cuando empiezan los partidos.'));
+  const { data } = await sb.from('matches').select(MATCH_COLS).eq('enabled',true).order('kickoff_at',{nullsFirst:false}).order('id');
+  S.resData=data||[];
+  renderRes();
+}
+function selRes(g){ S.resGroup=g; renderRes(); }
+function renderRes(){
+  const all=S.resData||[];
+  if(all.length===0) return paint(emptyState('📊','Sin partidos aún','Los partidos aparecen aquí cuando se habilita la fase.'));
+  const groups=[...new Set(all.map(m=>m.group_name).filter(Boolean))].sort();
+  const sel=S.resGroup||'all';
   let h='<div class="section-head"><div><div class="eyebrow">Marcadores</div><h2>Resultados</h2></div></div>'
-    +'<p class="muted" style="font-size:12px;margin:-6px 2px 12px">Toca un partido para ver los pronósticos de todos y cómo les fue.</p>';
-  if(live.length){
-    h+='<div class="eyebrow" style="margin:4px 2px 8px;color:var(--hot)">🔴 En vivo</div><div class="card" style="border-color:var(--hot)">';
-    live.forEach(r=>{ h+=resRow(r,true); });
+    +'<p class="muted" style="font-size:12px;margin:-6px 2px 10px">Toca un partido para ver los pronósticos de cada uno.</p>';
+  h+='<div class="phase-row"><button class="chip '+(sel==='all'?'active':'')+'" onclick="selRes(\'all\')">Todos</button>'
+    +groups.map(g=>'<button class="chip '+(sel===g?'active':'')+'" onclick="selRes(\''+g+'\')">Grupo '+g+'</button>').join('')+'</div>';
+  const list = sel==='all'? all : all.filter(m=>m.group_name===sel);
+  const live=list.filter(m=>m.status==='EN_JUEGO');
+  const fin =list.filter(m=>m.status==='FINALIZADO');
+  const next=list.filter(m=>m.status==='PROGRAMADO');
+
+  if(sel!=='all'){
+    // Vista por grupo: un solo bloque, en orden de fecha, cada uno con su estado
+    h+='<div class="card">';
+    if(list.length===0) h+='<div class="empty" style="padding:22px">Sin partidos en este grupo.</div>';
+    list.forEach(r=>{ h+=resRow(r, modeOf(r)); });
     h+='</div>';
+  }else{
+    if(live.length){
+      h+='<div class="eyebrow" style="margin:8px 2px 8px;color:var(--hot)">🔴 En vivo</div><div class="card" style="border-color:var(--hot)">';
+      live.forEach(r=>{ h+=resRow(r,'live'); }); h+='</div>';
+    }
+    if(fin.length){
+      h+='<div class="eyebrow" style="margin:16px 2px 8px">✅ Jugados</div><div class="card">';
+      fin.forEach(r=>{ h+=resRow(r,'fin'); }); h+='</div>';
+    }
+    if(next.length){
+      h+='<div class="eyebrow" style="margin:16px 2px 8px">⏳ Próximos</div><div class="card">';
+      next.forEach(r=>{ h+=resRow(r,'next'); }); h+='</div>';
+    }
   }
-  const byF={}; rows.forEach(r=>{(byF[r.phase]=byF[r.phase]||[]).push(r);});
-  FASE_ORDER.forEach(f=>{ if(!byF[f])return;
-    h+='<div class="eyebrow" style="margin:16px 2px 8px">'+esc(S.phases[f]?.label||f)+'</div><div class="card">';
-    byF[f].forEach(r=>{ h+=resRow(r,false); });
-    h+='</div>';
-  });
-  if(live.length) h+='<p class="muted center" style="font-size:12px;margin-top:10px">La tabla suma el marcador en vivo; queda firme cuando termina el partido.</p>';
+  if(live.length) h+='<p class="muted center" style="font-size:12px;margin-top:10px">La tabla suma el marcador en vivo; queda firme al terminar.</p>';
   paint(h);
   if(S.openBet){ const b=document.getElementById('det-'+S.openBet); if(b) toggleApuestas(S.openBet); }
 }

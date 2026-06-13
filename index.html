@@ -258,7 +258,7 @@ async function loadReference(){
 }
 function subscribeLive(){
   sb.channel('live')
-    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); if(S.tab==='todos')loadTodos(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'predictions'},()=>{ if(S.tab==='tabla')loadTabla(); })
     .subscribe();
 }
@@ -481,22 +481,54 @@ async function toggleApuestas(id){
   box.innerHTML=h;
 }
 
+function normTxt(s){ return (s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); }
+function pickScorer(pickName, scorers){
+  if(!pickName) return null;
+  const toks=normTxt(pickName).split(/\s+/).filter(t=>t.length>=4);
+  return (scorers||[]).find(s=>{ const n=normTxt(s.name); return toks.some(t=>n.includes(t)); }) || null;
+}
 async function loadTodos(){
   if(!S.config.predictions_visible) return paint(emptyState('🤫','Pronósticos ocultos','Las predicciones de todos se revelan al cerrar la fase de grupos.'));
-  const [fx, ex] = await Promise.all([
+  const [fx, ex, sc] = await Promise.all([
     sb.from('matches').select(MATCH_COLS).eq('phase','GRUPOS').eq('enabled',true).order('id'),
-    sb.from('bonus_predictions').select('points,participant:participant_id(name),top_scorer:top_scorer_id(name),mvp:mvp_id(name),finalist1:finalist1_id(name,flag),finalist2:finalist2_id(name,flag)')
+    sb.from('bonus_predictions').select('points,participant:participant_id(name),top_scorer:top_scorer_id(name),mvp:mvp_id(name),finalist1:finalist1_id(name,flag),finalist2:finalist2_id(name,flag)'),
+    sb.rpc('get_scorers')
   ]);
   S.fixTodos=fx.data||[];
+  const scorers = sc.data || [];
+  const topGoals = scorers.length ? scorers[0].goals : 0;
   let h='<div class="section-head"><div><div class="eyebrow">Sin secretos</div><h2>La familia</h2></div></div>';
-  h+='<div class="field"><label>Ver pronósticos de un partido</label><select id="tm" onchange="verPartido()"><option value="">— elige —</option>'
+
+  // ---- Goleador en curso ----
+  h+='<div class="eyebrow" style="margin:4px 2px 8px">🥇 Goleador en curso</div><div class="card pad">';
+  if(scorers.length===0){
+    h+='<p class="muted" style="font-size:13px">Aún no hay goles. Cuando empiecen a caer, aquí aparece quién lidera la bota de oro.</p>';
+  }else{
+    const leaders=scorers.filter(s=>s.goals===topGoals);
+    h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
+    leaders.forEach(l=>{ h+='<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:18px">⚽ '+esc(l.name)+' <span style="color:var(--pitch)">'+l.goals+'</span></span>'; });
+    h+='</div>';
+    if(scorers.length>leaders.length){
+      h+='<div class="muted" style="font-size:12px;margin-top:8px">Persiguen: '+scorers.slice(leaders.length,leaders.length+6).map(s=>esc(s.name)+' ('+s.goals+')').join(' · ')+'</div>';
+    }
+  }
+  h+='</div>';
+
+  h+='<div class="field" style="margin-top:16px"><label>Ver pronósticos de un partido</label><select id="tm" onchange="verPartido()"><option value="">— elige —</option>'
     +S.fixTodos.map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');return '<option value="'+m.id+'">'+a.flag+' '+esc(a.name)+' vs '+esc(b.name)+' '+b.flag+'</option>';}).join('')+'</select></div>';
   h+='<div id="tm-out"></div>';
   const exr=(ex.data||[]).filter(e=>e.top_scorer||e.mvp||e.finalist1||e.finalist2);
   if(exr.length){
-    h+='<div class="eyebrow" style="margin:18px 2px 8px">Apuestas especiales</div><div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>Jugador</th><th style="text-align:left">Goleador</th><th style="text-align:left">MVP</th><th style="text-align:left">Finalistas</th></tr></thead><tbody>';
+    h+='<div class="eyebrow" style="margin:18px 2px 8px">Apuestas especiales</div>'
+      +'<p class="muted" style="font-size:12px;margin:-4px 2px 8px">El 🔥 marca a quien eligió al goleador que va liderando (suma '+(S.config.bonus_top_scorer||5)+' pts provisorios).</p>'
+      +'<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>Jugador</th><th style="text-align:left">Goleador</th><th style="text-align:left">MVP</th><th style="text-align:left">Finalistas</th></tr></thead><tbody>';
     exr.forEach(e=>{ const fins=[e.finalist1,e.finalist2].filter(Boolean).map(t=>t.flag+esc(t.name)).join(' · ');
-      h+='<tr><td style="text-align:left;font-weight:600">'+esc(e.participant?.name)+'</td><td style="text-align:left">'+esc(e.top_scorer?.name||'—')+'</td><td style="text-align:left">'+esc(e.mvp?.name||'—')+'</td><td style="text-align:left">'+(fins||'—')+'</td></tr>';
+      const sg=pickScorer(e.top_scorer?.name, scorers);
+      const lead = sg && sg.goals===topGoals && topGoals>0;
+      let gol = e.top_scorer?.name ? esc(e.top_scorer.name) : '—';
+      if(sg) gol += ' <span style="color:var(--pitch);font-weight:600">'+sg.goals+'⚽</span>';
+      if(lead) gol += ' 🔥';
+      h+='<tr><td style="text-align:left;font-weight:600">'+esc(e.participant?.name)+'</td><td style="text-align:left">'+gol+'</td><td style="text-align:left">'+esc(e.mvp?.name||'—')+'</td><td style="text-align:left">'+(fins||'—')+'</td></tr>';
     });
     h+='</tbody></table></div>';
   }

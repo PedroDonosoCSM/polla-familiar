@@ -287,7 +287,7 @@ function go(tab){
   if(tab==='equipos')return loadEquipos();
 }
 
-const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,home_goals,away_goals,home_scorers,away_scorers,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
+const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
 async function loadPred(){
   const { data } = await sb.from('matches').select('phase').eq('enabled',true);
   const set=[...new Set((data||[]).map(r=>r.phase))];
@@ -419,10 +419,22 @@ async function loadTabla(){
 }
 
 async function loadResultados(){
-  const { data } = await sb.from('matches').select(MATCH_COLS).eq('status','FINALIZADO').order('id');
-  const rows=data||[];
-  if(rows.length===0) return paint(emptyState('📊','Sin resultados aún','Los marcadores aparecen aquí cuando terminan los partidos.'));
+  const { data } = await sb.from('matches').select(MATCH_COLS).in('status',['EN_JUEGO','FINALIZADO']).order('id');
+  const all=data||[];
+  const live=all.filter(r=>r.status==='EN_JUEGO');
+  const rows=all.filter(r=>r.status==='FINALIZADO');
+  if(live.length===0 && rows.length===0) return paint(emptyState('📊','Sin resultados aún','Los marcadores aparecen aquí cuando empiezan los partidos.'));
   let h='<div class="section-head"><div><div class="eyebrow">Marcadores</div><h2>Resultados</h2></div></div>';
+  if(live.length){
+    h+='<div class="eyebrow" style="margin:4px 2px 8px;color:var(--hot)">🔴 En vivo</div><div class="card" style="border-color:var(--hot)">';
+    live.forEach(r=>{ const hh=teamOf(r,'home'),aa=teamOf(r,'away');
+      h+='<div class="res-row"><div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'
+        +'<div class="res-score tnum" style="background:var(--hot)">'+ (r.home_goals??0) +'–'+ (r.away_goals??0) +'</div>'
+        +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+'</div></div>'
+        +'<div class="scorers" style="color:var(--hot);font-weight:600">⏱ '+esc(r.live_clock||'En juego')+'</div>';
+    });
+    h+='</div>';
+  }
   const byF={}; rows.forEach(r=>{(byF[r.phase]=byF[r.phase]||[]).push(r);});
   FASE_ORDER.forEach(f=>{ if(!byF[f])return;
     h+='<div class="eyebrow" style="margin:16px 2px 8px">'+esc(S.phases[f]?.label||f)+'</div><div class="card">';
@@ -435,6 +447,7 @@ async function loadResultados(){
     });
     h+='</div>';
   });
+  if(live.length) h+='<p class="muted center" style="font-size:12px;margin-top:10px">La tabla suma el marcador en vivo; queda firme cuando termina el partido.</p>';
   paint(h);
 }
 

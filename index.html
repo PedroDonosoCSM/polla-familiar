@@ -178,6 +178,8 @@
   <div class="topbar">
     <div class="brand"><span class="ball">⚽</span><div><small>Polla Familiar</small><h1>Mundial 2026</h1></div></div>
     <div class="topbar-right">
+      <span id="my-av" onclick="pickAvatar()" title="Cambiar mi foto" style="cursor:pointer;display:inline-flex"></span>
+      <input type="file" id="av-file" accept="image/*" style="display:none" onchange="onAvatarFile(event)">
       <div class="who"><b id="who-name">—</b><span>jugando</span></div>
       <button id="admin-btn" class="icon-btn hidden" title="Admin" onclick="openAdmin()">🛠️</button>
       <button class="icon-btn" title="Cómo se juega" onclick="openInfo()">ℹ️</button>
@@ -206,7 +208,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 const FASE_ORDER = ['GRUPOS','DIECISEISAVOS','OCTAVOS','CUARTOS','SEMIS','TERCER_LUGAR','FINAL'];
 const NEUTRAL_FLAG = '⚪';
 const S = { me:null, tab:'pred', fase:null, fasesHab:[], phases:{}, config:null,
-            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[] };
+            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[], avatars:{} };
 let PLAYERS_BY_NAME = {};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -230,23 +232,56 @@ function avatarColor(id){ const c=['#FFC83D','#15B66E','#4FA8E0','#E0794F','#B07
 function initialsOf(n){ return (n||'?').trim().slice(0,2).toUpperCase(); }
 function profEmail(id){ return 'profile'+id+'@pollafamiliar.app'; }
 function pinPass(pin){ return 'Pf26#'+pin; }
+function setAvatars(arr){ (arr||[]).forEach(p=>{ S.avatars[p.id]=p.avatar_url||null; }); }
+function avatarMarkup(id, name, size){
+  const s=size||40, url=S.avatars[id];
+  if(url) return '<img src="'+url+'" alt="" style="width:'+s+'px;height:'+s+'px;border-radius:50%;object-fit:cover;flex:none;display:block">';
+  return '<span style="width:'+s+'px;height:'+s+'px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-family:\'Barlow Condensed\',sans-serif;font-weight:700;color:#0B1B2B;background:'+avatarColor(id)+';font-size:'+Math.round(s*0.42)+'px;flex:none">'+esc(initialsOf(name))+'</span>';
+}
+function renderMyAvatar(){ const el=document.getElementById('my-av'); if(el&&S.me) el.innerHTML=avatarMarkup(S.me.id,S.me.name,36); }
+function pickAvatar(){ const f=document.getElementById('av-file'); if(f) f.click(); }
+function onAvatarFile(ev){
+  const file=ev.target.files&&ev.target.files[0]; if(!file) return;
+  const rd=new FileReader();
+  rd.onload=()=>{ const img=new Image();
+    img.onload=async ()=>{
+      const s=160, c=document.createElement('canvas'); c.width=s; c.height=s;
+      const ctx=c.getContext('2d'); const m=Math.min(img.width,img.height);
+      ctx.drawImage(img,(img.width-m)/2,(img.height-m)/2,m,m,0,0,s,s);
+      const data=c.toDataURL('image/jpeg',0.78);
+      const { error } = await sb.rpc('set_avatar',{ p_data:data });
+      if(error){ toast('No se pudo guardar la foto','bad'); return; }
+      S.me.avatar_url=data; S.avatars[S.me.id]=data; renderMyAvatar(); toast('Foto actualizada','ok');
+      if(S.tab) go(S.tab);
+    };
+    img.onerror=()=>toast('No se pudo leer la imagen','bad');
+    img.src=rd.result;
+  };
+  rd.onerror=()=>toast('No se pudo leer el archivo','bad');
+  rd.readAsDataURL(file);
+  ev.target.value='';
+}
 let PROFILES=[], PICK=null;
 async function renderProfiles(){
   lerr('');
   const { data, error } = await sb.rpc('list_profiles');
   const grid=document.getElementById('profiles'); if(!grid) return;
   if(error || !data){ grid.innerHTML='<p class="sub" style="grid-column:1/-1">No se pudieron cargar los perfiles.</p>'; return; }
-  PROFILES=data;
+  PROFILES=data; setAvatars(data);
   grid.innerHTML=data.map(p=>
     '<div class="prof-card" onclick="pickProfile('+p.id+')">'
-    +'<div class="prof-av" style="background:'+avatarColor(p.id)+'">'+esc(initialsOf(p.name))+'</div>'
+    +(p.avatar_url
+        ? '<img class="prof-av" src="'+p.avatar_url+'" style="object-fit:cover">'
+        : '<div class="prof-av" style="background:'+avatarColor(p.id)+'">'+esc(initialsOf(p.name))+'</div>')
     +'<div class="prof-name">'+esc(p.name)+'</div>'
     +'<div class="prof-lock">'+(p.has_pin?'🔒 clave':'➕ crear clave')+'</div></div>'
   ).join('');
 }
 function pickProfile(id){
   PICK=PROFILES.find(p=>p.id===id); if(!PICK) return;
-  const av=document.getElementById('pin-av'); av.textContent=initialsOf(PICK.name); av.style.background=avatarColor(PICK.id);
+  const av=document.getElementById('pin-av');
+  if(PICK.avatar_url){ av.innerHTML='<img src="'+PICK.avatar_url+'" style="width:100%;height:100%;border-radius:50%;object-fit:cover">'; av.style.background='transparent'; }
+  else { av.innerHTML=''; av.textContent=initialsOf(PICK.name); av.style.background=avatarColor(PICK.id); }
   document.getElementById('pin-title').textContent='Hola, '+PICK.name;
   document.getElementById('pin-sub').textContent=PICK.has_pin?'Ingresa tu clave de 4 dígitos':'Crea tu clave de 4 dígitos';
   document.getElementById('pin-btn').textContent=PICK.has_pin?'Entrar':'Crear y entrar';
@@ -287,11 +322,14 @@ async function boot(){
   let { data, error } = await sb.rpc('register_profile');
   if(error){ toast('No se pudo iniciar tu perfil: '+error.message,'bad'); booted=false; return; }
   S.me = data;
+  S.avatars[S.me.id] = S.me.avatar_url || null;
   document.getElementById('pinModal').classList.add('hidden');
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('who-name').textContent = S.me.name;
   if(S.me.is_admin) document.getElementById('admin-btn').classList.remove('hidden');
+  try{ const r=await sb.rpc('list_profiles'); setAvatars(r.data||[]); }catch(e){}
+  renderMyAvatar();
   await loadReference();
   subscribeLive();
   go('pred');
@@ -465,7 +503,7 @@ function podStep(tier, place){
   if(!tier) return '<div class="pod-col"></div>';
   const medal=place===1?'🥇':place===2?'🥈':'🥉', cls=place===1?'gold':place===2?'silver':'bronze';
   const ppl=tier.people, shown=ppl.slice(0,3);
-  let names=shown.map(p=>'<div class="pod-person"><span class="pod-av" style="background:'+avatarColor(p.id)+'">'+esc(initialsOf(p.name))+'</span><span class="pod-name">'+esc(p.name.split(' ')[0])+'</span></div>').join('');
+  let names=shown.map(p=>'<div class="pod-person">'+avatarMarkup(p.id,p.name,22)+'<span class="pod-name">'+esc(p.name.split(' ')[0])+'</span></div>').join('');
   if(ppl.length>3) names+='<div class="pod-name" style="color:var(--muted)">+'+(ppl.length-3)+' más</div>';
   return '<div class="pod-col"><div class="pod-medal">'+medal+'</div>'
     +'<div class="pod-people">'+names+'</div>'

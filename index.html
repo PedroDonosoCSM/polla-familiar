@@ -126,6 +126,19 @@
   .pod-block.gold{height:84px;background:linear-gradient(#FFD451,#E2A400)}
   .pod-block.silver{height:64px;background:linear-gradient(#CBD4DE,#98A6B6)}
   .pod-block.bronze{height:50px;background:linear-gradient(#E2A36D,#AE6B34)}
+  .player-card{background:#fff;border-radius:18px;padding:20px 18px;width:100%;max-width:440px;max-height:86vh;overflow:auto;position:relative}
+  .pp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:6px 0 4px;text-align:center}
+  .pp-stats>div{background:#F4F6F8;border-radius:10px;padding:8px 4px;font-size:11px;color:var(--muted)}
+  .pp-stats>div span{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;color:var(--ink)}
+  .pp-sumwrap{margin:12px 0 2px;font-size:12px;color:var(--muted);line-height:1.7}
+  .pp-row{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px solid var(--line)}
+  .pp-match{font-size:13px}
+  .pp-sub{font-size:11px;color:var(--muted)}
+  .pp-tag{font-size:10px;font-weight:700;padding:3px 7px;border-radius:999px;white-space:nowrap}
+  .pp-tag.ex{background:#D7F5E3;color:#0B7A3B}
+  .pp-tag.win{background:#FFF1CC;color:#8A6A00}
+  .pp-tag.miss{background:#F0F0F0;color:#888}
+  .pp-tag.pend{background:#E8F0FA;color:#3B6EA5}
   .brk-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
   .login-form{background:var(--surface);border-radius:20px;padding:22px;color:var(--ink);text-align:left;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .login-form .btn{margin-top:6px;width:100%}
@@ -173,6 +186,10 @@
     <button class="btn primary" id="pin-btn" onclick="submitPin()">Entrar</button>
     <div class="err" id="pin-err" style="margin-top:8px"></div>
   </div>
+</div>
+
+<div id="playerModal" class="pin-modal hidden" onclick="if(event.target===this)closePlayer()">
+  <div class="player-card" id="player-body"></div>
 </div>
 
 <div id="app" class="hidden">
@@ -399,15 +416,16 @@ function go(tab){
 
 const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
 async function loadPred(){
-  const { data } = await sb.from('matches').select('phase').eq('enabled',true);
-  const set=[...new Set((data||[]).map(r=>r.phase))];
-  S.fasesHab = FASE_ORDER.filter(f=>set.includes(f));
-  if(S.fasesHab.length===0) return paint(emptyState('⏳','Aún no hay fases abiertas','Cuando se habilite una fase, podrás cargar tus pronósticos aquí.'));
-  if(!S.fasesHab.includes(S.fase)) S.fase=S.fasesHab[0];
+  const { data } = await sb.from('matches').select('phase,enabled');
+  S.enabledPhases = new Set((data||[]).filter(r=>r.enabled).map(r=>r.phase));
+  S.allPhases = FASE_ORDER.filter(f=>S.phases[f]);
+  if(S.allPhases.length===0) return paint(emptyState('⏳','Aún no hay fases','Pronto podrás cargar tus pronósticos aquí.'));
+  if(!S.fase || !S.allPhases.includes(S.fase)) S.fase = S.allPhases.find(f=>S.enabledPhases.has(f)) || S.allPhases[0];
   await loadFase();
 }
 async function loadFase(){
   const fase=S.fase;
+  if(!S.enabledPhases.has(fase)){ S.fixture=[]; S.preds={}; renderPred(); return; }
   const [fx, pr, bn] = await Promise.all([
     sb.from('matches').select(MATCH_COLS).eq('phase',fase).eq('enabled',true).order('id'),
     sb.from('predictions').select('match_id,home_goals,away_goals').eq('participant_id',S.me.id),
@@ -423,8 +441,19 @@ async function loadFase(){
 }
 function renderPred(){
   const fase=S.fase, ph=S.phases[fase]||{points_exact:2,points_winner:1,label:fase};
+  const open=S.enabledPhases.has(fase);
+  let chips='<div class="phase-row">'+S.allPhases.map(f=>'<button class="chip '+(f===fase?'active':'')+'" onclick="selFase(\''+f+'\')">'+esc(S.phases[f]?.label||f)+(S.enabledPhases.has(f)?'':' 🔒')+'</button>').join('')+'</div>';
+  if(!open){
+    const idx=FASE_ORDER.indexOf(fase), prev=idx>0?S.phases[FASE_ORDER[idx-1]]?.label:null;
+    const head='<div class="section-head"><div><div class="eyebrow">Mis pronósticos</div><h2>'+esc(ph.label)+'</h2></div></div>';
+    const card='<div class="card pad" style="text-align:center;padding:30px 18px"><div style="font-size:40px">🔒</div>'
+      +'<h3 style="font-family:\'Barlow Condensed\',sans-serif;font-size:24px;margin:8px 0 4px">Próximamente</h3>'
+      +'<p class="muted" style="font-size:13px;line-height:1.5">Los pronósticos de <b>'+esc(ph.label)+'</b> se abrirán '
+      +(prev?'cuando termine <b>'+esc(prev)+'</b>':'cuando avance el torneo')
+      +'.<br>Valen Exacto +'+ph.points_exact+' · Ganador +'+ph.points_winner+'. ¡Prepárate! 🏆</p></div>';
+    return paint(chips+head+card);
+  }
   const enviada=!!S.submissions[fase];
-  let chips='<div class="phase-row">'+S.fasesHab.map(f=>'<button class="chip '+(f===fase?'active':'')+'" onclick="selFase(\''+f+'\')">'+esc(S.phases[f]?.label||f)+'</button>').join('')+'</div>';
   let head='<div class="section-head"><div><div class="eyebrow">Mis pronósticos</div><h2>'+esc(ph.label)+'</h2></div>'
     +(enviada?'<span class="pill sent">✓ Enviado</span>':'<span class="muted" style="font-size:12px">Exacto +'+ph.points_exact+' · Ganador +'+ph.points_winner+'</span>')+'</div>';
   let banner = enviada? '<div class="banner">Ya enviaste esta fase. Tus pronósticos quedaron guardados y no se pueden cambiar.</div>':'';
@@ -563,8 +592,8 @@ async function loadTabla(){
   }
   h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
-    h+='<tr class="'+(me?'me':'')+'"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
-      +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+'</td>'
+    h+='<tr class="'+(me?'me':'')+'" style="cursor:pointer" onclick="openPlayer('+r.id+')"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
+      +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+' <span style="color:var(--muted);font-size:10px">›</span></td>'
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
@@ -608,6 +637,55 @@ async function loadLlave(){
   paint(h);
 }
 
+function closePlayer(){ document.getElementById('playerModal').classList.add('hidden'); }
+function ppTag(p){
+  const m=p.match||{};
+  if(m.status==='FINALIZADO'){
+    if(p.is_exact) return {t:'EXACTO +'+(p.points||0),c:'ex'};
+    if((p.points||0)>0) return {t:'GANADOR +'+(p.points||0),c:'win'};
+    return {t:'Falló',c:'miss'};
+  }
+  return {t:'Por jugar',c:'pend'};
+}
+async function openPlayer(id){
+  const modal=document.getElementById('playerModal'), body=document.getElementById('player-body');
+  body.innerHTML='<p class="muted" style="padding:24px;text-align:center">Cargando…</p>';
+  modal.classList.remove('hidden');
+  const [lb, pr] = await Promise.all([
+    sb.from('leaderboard').select('*'),
+    sb.from('predictions').select('home_goals,away_goals,points,is_exact,match:match_id(phase,group_name,status,home_goals,away_goals,kickoff_at,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag))').eq('participant_id',id)
+  ]);
+  const rows=lb.data||[]; const tiers=rankTiers(rows); let ahead=0; tiers.forEach(t=>{t.rank=ahead+1;ahead+=t.people.length;});
+  const rankOf={}; tiers.forEach(t=>t.people.forEach(p=>rankOf[p.id]=t.rank));
+  const me=rows.find(r=>r.id===id)||{}; 
+  body.innerHTML=playerHtml(id, me, rankOf[id], pr.data||[]);
+}
+function playerHtml(id, me, rank, preds){
+  const total=me.pts_total||0, ex=me.exact_count||0;
+  const byPhase={}; preds.forEach(p=>{ const ph=p.match?.phase||'?'; (byPhase[ph]=byPhase[ph]||[]).push(p); });
+  let summary='', list='';
+  FASE_ORDER.forEach(f=>{ const arr=byPhase[f]; if(!arr||!arr.length) return;
+    let exc=0,win=0,miss=0,pend=0;
+    arr.forEach(p=>{ const m=p.match||{}; if(m.status==='FINALIZADO'){ if(p.is_exact)exc++; else if((p.points||0)>0)win++; else miss++; } else pend++; });
+    summary+='<div><b>'+esc(S.phases[f]?.label||f)+':</b> '+exc+' exactos · '+win+' ganador · '+miss+' fallados'+(pend?' · '+pend+' por jugar':'')+'</div>';
+    list+='<div class="eyebrow" style="margin:14px 2px 4px">'+esc(S.phases[f]?.label||f)+'</div>';
+    arr.sort((a,b)=>String(a.match?.kickoff_at||'').localeCompare(String(b.match?.kickoff_at||'')));
+    arr.forEach(p=>{ const m=p.match||{}; const tg=ppTag(p);
+      const hn=m.home_team?(m.home_team.flag+' '+esc(m.home_team.name)):esc(koHuman(m.home_label));
+      const an=m.away_team?(esc(m.away_team.name)+' '+m.away_team.flag):esc(koHuman(m.away_label));
+      const real=(m.status==='FINALIZADO'||m.status==='EN_JUEGO')?(m.home_goals+'–'+m.away_goals):'—';
+      list+='<div class="pp-row"><div style="flex:1;min-width:0"><div class="pp-match">'+hn+' <b>'+p.home_goals+'–'+p.away_goals+'</b> '+an+'</div>'
+        +'<div class="pp-sub">Resultado: '+real+'</div></div><span class="pp-tag '+tg.c+'">'+tg.t+'</span></div>';
+    });
+  });
+  return '<button class="pin-close" onclick="closePlayer()">✕</button>'
+    +'<div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">'+avatarMarkup(id,me.name,56)
+    +'<div><div style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:700;line-height:1">'+esc(me.name||'')+'</div>'
+    +'<div class="muted" style="font-size:13px;margin-top:2px">'+(rank?'Puesto '+rank+'° · ':'')+total+' pts · '+ex+' exactos</div></div></div>'
+    +'<div class="pp-stats"><div><span>'+(me.pts_grupos||0)+'</span>Grupos</div><div><span>'+(me.pts_eliminatorias||0)+'</span>Elim</div><div><span>'+(me.pts_bonus||0)+'</span>Extras</div><div><span>'+total+'</span>Total</div></div>'
+    +(summary?'<div class="eyebrow" style="margin:14px 2px 6px">Aciertos por fase</div><div class="pp-sumwrap">'+summary+'</div>':'')
+    +(list?'<div class="eyebrow" style="margin:16px 2px 6px">Todos sus pronósticos</div>'+list:'<p class="muted" style="font-size:13px;margin-top:12px">Aún sin pronósticos para mostrar.</p>');
+}
 function resRow(r, mode){
   const hh=teamOf(r,'home'),aa=teamOf(r,'away');
   let center;

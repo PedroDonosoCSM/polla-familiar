@@ -80,9 +80,9 @@
   .btn.primary{background:var(--pitch);color:#fff}.btn.send{background:var(--ink);color:var(--gold)}
   .btn:disabled{opacity:.45;box-shadow:none}
   .ranktable{width:100%;border-collapse:collapse}
-  .ranktable th{font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.04em;font-size:11px;color:var(--muted);text-align:right;padding:10px 5px;border-bottom:1px solid var(--line)}
+  .ranktable th{font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.02em;font-size:10px;color:var(--muted);text-align:right;padding:10px 4px;border-bottom:1px solid var(--line)}
   .ranktable th:first-child,.ranktable th:nth-child(2){text-align:left}
-  .ranktable td{padding:11px 5px;border-bottom:1px solid var(--line);text-align:right;font-size:14px}
+  .ranktable td{padding:11px 4px;border-bottom:1px solid var(--line);text-align:right;font-size:13px}
   .ranktable td:nth-child(2){text-align:left;font-weight:600}
   .ranktable .pts{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px}
   .ranktable tr.me{background:rgba(255,200,61,.14)}
@@ -590,14 +590,15 @@ async function loadTabla(){
   if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
     h+='<div class="podium">'+podStep(byRank(2),2)+podStep(byRank(1),1)+podStep(byRank(3),3)+'</div>';
   }
-  h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
+  h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Exa</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
     h+='<tr class="'+(me?'me':'')+'" style="cursor:pointer" onclick="openPlayer('+r.id+')"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
       +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+' <span style="color:var(--muted);font-size:10px">›</span></td>'
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
+      +'<td class="tnum" style="color:var(--pitch);font-weight:700">'+(r.exact_count||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. Empatados comparten el puesto y se reparten esos lugares; el siguiente salta los ocupados (ej: 3 en 1º → el que sigue es 4º). Gru = grupos · Eli = eliminatorias · Ext = extras.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. <b style="color:var(--pitch)">Exa</b> = marcadores exactos (desempate entre quienes tienen los mismos puntos). Empatados comparten el puesto; el siguiente salta los ocupados.</p>';
   paint(h);
 }
 

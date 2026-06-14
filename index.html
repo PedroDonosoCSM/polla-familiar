@@ -202,6 +202,7 @@
 <div id="modal-root"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script>
 const SB_URL = 'https://gamapljpgxxjkwhccdqa.supabase.co';
 const SB_KEY = 'sb_publishable_w9PNVgyUz6IlFp596n2RHA_k69hwDkb';
@@ -210,7 +211,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 const FASE_ORDER = ['GRUPOS','DIECISEISAVOS','OCTAVOS','CUARTOS','SEMIS','TERCER_LUGAR','FINAL'];
 const NEUTRAL_FLAG = '⚪';
 const S = { me:null, tab:'pred', fase:null, fasesHab:[], phases:{}, config:null,
-            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[], avatars:{}, koRound:null };
+            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[], avatars:{}, koRound:null, celebrated:null };
 let PLAYERS_BY_NAME = {};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -314,6 +315,21 @@ async function submitPin(){
   } finally { btn.disabled=false; btn.textContent=t0; }
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
+function fireConfetti(){
+  if(typeof confetti!=='function') return;
+  confetti({particleCount:130,spread:75,origin:{y:0.6}});
+  setTimeout(()=>confetti({particleCount:90,spread:110,startVelocity:35,origin:{y:0.5}}),250);
+}
+async function celebrateExacts(initial){
+  if(!S.me) return;
+  const { data } = await sb.from('predictions')
+    .select('match_id,is_exact,match:match_id(status)')
+    .eq('participant_id',S.me.id).eq('is_exact',true);
+  const exacts=(data||[]).filter(p=>p.match && p.match.status==='FINALIZADO').map(p=>p.match_id);
+  if(initial || !S.celebrated){ S.celebrated=new Set(exacts); return; }
+  const fresh=exacts.filter(id=>!S.celebrated.has(id));
+  if(fresh.length){ fresh.forEach(id=>S.celebrated.add(id)); fireConfetti(); toast('¡EXACTO! 🎯 +2','ok'); }
+}
 
 sb.auth.onAuthStateChange((_e, session)=>{ if(session) boot(); });
 (async ()=>{ const { data } = await sb.auth.getSession(); if(data.session) boot(); else renderProfiles(); })();
@@ -334,6 +350,7 @@ async function boot(){
   renderMyAvatar();
   await loadReference();
   subscribeLive();
+  celebrateExacts(true);
   go('pred');
 }
 async function loadReference(){
@@ -350,7 +367,7 @@ async function loadReference(){
 }
 function subscribeLive(){
   sb.channel('live')
-    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); if(S.tab==='todos')loadTodos(); if(S.tab==='llave')loadLlave(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); if(S.tab==='todos')loadTodos(); if(S.tab==='llave')loadLlave(); celebrateExacts(false); })
     .on('postgres_changes',{event:'*',schema:'public',table:'predictions'},()=>{ if(S.tab==='tabla')loadTabla(); })
     .subscribe();
 }
@@ -411,6 +428,16 @@ function renderPred(){
   let head='<div class="section-head"><div><div class="eyebrow">Mis pronósticos</div><h2>'+esc(ph.label)+'</h2></div>'
     +(enviada?'<span class="pill sent">✓ Enviado</span>':'<span class="muted" style="font-size:12px">Exacto +'+ph.points_exact+' · Ganador +'+ph.points_winner+'</span>')+'</div>';
   let banner = enviada? '<div class="banner">Ya enviaste esta fase. Tus pronósticos quedaron guardados y no se pueden cambiar.</div>':'';
+  let remind='';
+  if(!enviada){
+    const now=Date.now();
+    const dls=S.fixture.map(m=>m.deadline_at).filter(Boolean).map(d=>new Date(d).getTime()).filter(t=>t>now);
+    if(dls.length){
+      const mins=Math.round((Math.min(...dls)-now)/60000);
+      if(mins<=120){ const txt=mins>=60?Math.floor(mins/60)+'h '+(mins%60)+'m':mins+'m';
+        remind='<div class="banner" style="background:#FFF4D6;border-color:#E6B800;color:#7A5B00">⏰ ¡Quedan '+txt+' para cerrar tus pronósticos! No te quedes sin jugar.</div>'; }
+    }
+  }
   let tickets='';
   if(S.fixture.length===0) tickets=emptyState('🗓️','Sin partidos','Esta fase aún no tiene partidos.');
   else S.fixture.forEach(m=>{
@@ -426,7 +453,7 @@ function renderPred(){
       +'<button class="btn send" '+(canSend?'':'disabled')+' onclick="guardar(true)">Enviar definitivo</button></div>'
       +(canSend?'':'<p class="muted center" style="font-size:12px;margin-top:8px">El envío definitivo se abre cuando el admin lo habilite.</p>');
   }
-  paint(chips+head+banner+tickets+extras+actions);
+  paint(chips+head+banner+remind+tickets+extras+actions);
 }
 function ticket(m,lv,vv,locked){
   const h=teamOf(m,'home'), a=teamOf(m,'away');
@@ -514,24 +541,31 @@ function podStep(tier, place){
     +'<div class="pod-block '+cls+'">'+place+'</div></div>';
 }
 async function loadTabla(){
-  const { data } = await sb.from('leaderboard').select('*');
+  const [{ data }, snap] = await Promise.all([
+    sb.from('leaderboard').select('*'),
+    sb.rpc('get_rank_snap')
+  ]);
   const rows=data||[];
   if(rows.length===0) return paint(emptyState('🏅','Tabla vacía','Cuando se carguen resultados verás el ranking de la familia.'));
+  const prev=snap.data||{};
   const tiers=rankTiers(rows);
   const rankOf={}; tiers.forEach((t,i)=>t.people.forEach(p=>rankOf[p.id]=i+1));
+  const moveArrow=(id)=>{ const p=prev[id], c=rankOf[id]; if(p==null) return '';
+    if(c<p) return ' <span style="color:var(--pitch);font-size:11px" title="subió">▲</span>';
+    if(c>p) return ' <span style="color:var(--hot);font-size:11px" title="bajó">▼</span>';
+    return ' <span style="color:var(--muted);font-size:10px">·</span>'; };
   let h='<div class="section-head"><div><div class="eyebrow">Clasificación</div><h2>Tabla general</h2></div></div>';
-  // Podio (con empates: comparten escalón)
   if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
     h+='<div class="podium">'+podStep(tiers[1],2)+podStep(tiers[0],1)+podStep(tiers[2],3)+'</div>';
   }
   h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
     h+='<tr class="'+(me?'me':'')+'"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
-      +'<td>'+esc(r.name)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+'</td>'
+      +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+'</td>'
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Empatados comparten lugar. Gru = grupos · Eli = eliminatorias · Ext = extras. Desempate por marcadores exactos.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. Empatados comparten lugar. Gru = grupos · Eli = eliminatorias · Ext = extras.</p>';
   paint(h);
 }
 

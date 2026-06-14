@@ -811,10 +811,14 @@ async function loadTodos(){
   }else{
     const leaders=scorers.filter(s=>s.goals===topGoals);
     h+='<div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">';
-    leaders.forEach(l=>{ h+='<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:18px">⚽ '+esc(l.name)+' <span style="color:var(--pitch)">'+l.goals+'</span></span>'; });
+    leaders.slice(0,3).forEach(l=>{ h+='<span style="font-family:\'Barlow Condensed\',sans-serif;font-weight:700;font-size:18px">⚽ '+esc(l.name)+' <span style="color:var(--pitch)">'+l.goals+'</span></span>'; });
+    if(leaders.length>3) h+='<span class="muted" style="font-size:13px">y '+(leaders.length-3)+' más con '+topGoals+'</span>';
     h+='</div>';
-    if(scorers.length>leaders.length){
-      h+='<div class="muted" style="font-size:12px;margin-top:8px">Persiguen: '+scorers.slice(leaders.length,leaders.length+6).map(s=>esc(s.name)+' ('+s.goals+')').join(' · ')+'</div>';
+    const chasers=scorers.filter(s=>s.goals<topGoals);
+    if(chasers.length){
+      const names=chasers.slice(0,2).map(s=>esc(s.name)+' ('+s.goals+')').join(' · ');
+      const extra=chasers.length-2;
+      h+='<div class="muted" style="font-size:12px;margin-top:8px">Persiguen: '+names+(extra>0?' y '+extra+' más':'')+'</div>';
     }
   }
   h+='</div>';

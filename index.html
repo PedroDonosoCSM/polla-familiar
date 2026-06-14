@@ -730,7 +730,8 @@ function renderRes(){
     +groups.map(g=>'<button class="chip '+(sel===g?'active':'')+'" onclick="selRes(\''+g+'\')">Grupo '+g+'</button>').join('')+'</div>';
   const list = sel==='all'? all : all.filter(m=>m.group_name===sel);
   const live=list.filter(m=>m.status==='EN_JUEGO');
-  const fin =list.filter(m=>m.status==='FINALIZADO');
+  const fin =list.filter(m=>m.status==='FINALIZADO')
+    .slice().sort((a,b)=> String(b.kickoff_at||'').localeCompare(String(a.kickoff_at||'')) || (b.id-a.id));
   const next=list.filter(m=>m.status==='PROGRAMADO');
 
   if(sel!=='all'){

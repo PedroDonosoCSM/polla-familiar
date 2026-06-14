@@ -467,8 +467,14 @@ function resRow(r, mode){
     +'<div class="res-row" style="cursor:pointer;border-bottom:none" onclick="toggleApuestas('+r.id+')">'
     +'<div class="res-team">'+hh.flag+' '+esc(hh.name)+'</div>'+center
     +'<div class="res-team away">'+esc(aa.name)+' '+aa.flag+' <span style="color:var(--muted);font-size:11px">▾</span></div></div>';
-  const scH = r.home_scorers ? '⚽ '+esc(r.home_scorers).split(', ').join('<br>') : '';
-  const scA = r.away_scorers ? esc(r.away_scorers).split(', ').join('<br>')+' ⚽' : '';
+  const hList = r.home_scorers ? esc(r.home_scorers).split(', ') : [];
+  const aList = r.away_scorers ? esc(r.away_scorers).split(', ') : [];
+  const missH = Math.max(0,(r.home_goals||0)-hList.length);
+  const missA = Math.max(0,(r.away_goals||0)-aList.length);
+  let scH = hList.length ? '⚽ '+hList.join('<br>') : '';
+  if(missH>0) scH += (scH?'<br>':'')+'<span style="opacity:.6">+'+missH+' gol s/ detalle</span>';
+  let scA = aList.length ? aList.join('<br>')+' ⚽' : '';
+  if(missA>0) scA += (scA?'<br>':'')+'<span style="opacity:.6">+'+missA+' gol s/ detalle</span>';
   if((mode==='live'||mode==='fin') && (scH||scA)){
     h+='<div style="display:flex;gap:12px;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px;line-height:1.5">'
       +'<div style="flex:1;text-align:left">'+scH+'</div>'

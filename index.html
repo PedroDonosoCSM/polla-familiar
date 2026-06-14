@@ -114,6 +114,18 @@
   .pin-card h2{font-family:'Barlow Condensed',sans-serif;font-size:24px;line-height:1;margin-bottom:4px;color:var(--ink)}
   #pin-input{width:170px;text-align:center;letter-spacing:14px;font-size:30px;font-weight:700;padding:10px;margin:16px auto;display:block;border:2px solid var(--line);border-radius:12px;color:var(--ink)}
   #pin-input:focus{outline:none;border-color:var(--pitch)}
+  .podium{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;align-items:end;margin:4px 0 18px}
+  .pod-col{display:flex;flex-direction:column;align-items:center;text-align:center}
+  .pod-medal{font-size:26px;line-height:1}
+  .pod-people{display:flex;flex-direction:column;gap:3px;margin:5px 0 2px}
+  .pod-person{display:flex;align-items:center;gap:5px;justify-content:center}
+  .pod-av{width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:11px;color:#0B1B2B;flex:none}
+  .pod-name{font-size:12px;font-weight:600;color:var(--ink);line-height:1.1}
+  .pod-pts{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;color:var(--muted);margin-bottom:5px}
+  .pod-block{width:100%;border-radius:10px 10px 0 0;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:22px;display:flex;align-items:flex-end;justify-content:center;padding-bottom:5px}
+  .pod-block.gold{height:84px;background:linear-gradient(#FFD451,#E2A400)}
+  .pod-block.silver{height:64px;background:linear-gradient(#CBD4DE,#98A6B6)}
+  .pod-block.bronze{height:50px;background:linear-gradient(#E2A36D,#AE6B34)}
   .login-form{background:var(--surface);border-radius:20px;padding:22px;color:var(--ink);text-align:left;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .login-form .btn{margin-top:6px;width:100%}
   .form-note{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
@@ -441,20 +453,44 @@ async function guardar(definitivo){
 }
 function traduce(c){return ({LOCKED:'Esta fase ya fue enviada',SUBMIT_CLOSED:'El envío aún no está habilitado',NO_USER:'Sesión no válida'})[c]||c;}
 
+function rankTiers(rows){
+  const tiers=[]; let cur=null;
+  rows.forEach(r=>{ const key=(r.pts_total||0)+'_'+(r.exact_count||0);
+    if(!cur || cur.key!==key){ cur={key,pts:r.pts_total||0,people:[]}; tiers.push(cur); }
+    cur.people.push(r);
+  });
+  return tiers;
+}
+function podStep(tier, place){
+  if(!tier) return '<div class="pod-col"></div>';
+  const medal=place===1?'🥇':place===2?'🥈':'🥉', cls=place===1?'gold':place===2?'silver':'bronze';
+  const ppl=tier.people, shown=ppl.slice(0,3);
+  let names=shown.map(p=>'<div class="pod-person"><span class="pod-av" style="background:'+avatarColor(p.id)+'">'+esc(initialsOf(p.name))+'</span><span class="pod-name">'+esc(p.name.split(' ')[0])+'</span></div>').join('');
+  if(ppl.length>3) names+='<div class="pod-name" style="color:var(--muted)">+'+(ppl.length-3)+' más</div>';
+  return '<div class="pod-col"><div class="pod-medal">'+medal+'</div>'
+    +'<div class="pod-people">'+names+'</div>'
+    +'<div class="pod-pts">'+tier.pts+' pts</div>'
+    +'<div class="pod-block '+cls+'">'+place+'</div></div>';
+}
 async function loadTabla(){
   const { data } = await sb.from('leaderboard').select('*');
   const rows=data||[];
   if(rows.length===0) return paint(emptyState('🏅','Tabla vacía','Cuando se carguen resultados verás el ranking de la familia.'));
-  let pos=0;
+  const tiers=rankTiers(rows);
+  const rankOf={}; tiers.forEach((t,i)=>t.people.forEach(p=>rankOf[p.id]=i+1));
   let h='<div class="section-head"><div><div class="eyebrow">Clasificación</div><h2>Tabla general</h2></div></div>';
+  // Podio (con empates: comparten escalón)
+  if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
+    h+='<div class="podium">'+podStep(tiers[1],2)+podStep(tiers[0],1)+podStep(tiers[2],3)+'</div>';
+  }
   h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
-  rows.forEach(r=>{ pos++; const me=r.id===S.me.id; const g=pos===1?'g1':pos===2?'g2':pos===3?'g3':'';
-    h+='<tr class="'+(me?'me':'')+'"><td><span class="pos-badge '+g+'">'+pos+'</span></td>'
+  rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
+    h+='<tr class="'+(me?'me':'')+'"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
       +'<td>'+esc(r.name)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+'</td>'
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Gru = fase de grupos · Eli = eliminatorias · Ext = extras (goleador, MVP, finalistas). Desempate por marcadores exactos.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Empatados comparten lugar. Gru = grupos · Eli = eliminatorias · Ext = extras. Desempate por marcadores exactos.</p>';
   paint(h);
 }
 

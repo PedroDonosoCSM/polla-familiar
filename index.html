@@ -96,7 +96,21 @@
   .login-card .crest{font-size:54px;margin-bottom:6px}
   .login-card h1{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:34px;text-transform:uppercase;line-height:.95}
   .login-card .yr{color:var(--gold);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:46px}
-  .login-card p.sub{color:#A9BBCB;margin:6px 0 26px;font-size:14px}
+  .login-card p.sub{color:#A9BBCB;margin:6px 0 22px;font-size:14px}
+  .prof-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .prof-card{cursor:pointer;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.14);border-radius:14px;padding:14px 6px 10px;text-align:center;transition:transform .12s,background .12s}
+  .prof-card:active{transform:scale(.96)}
+  .prof-card:hover{background:rgba(255,255,255,.12)}
+  .prof-av{width:54px;height:54px;border-radius:50%;margin:0 auto 8px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:26px;color:#0B1B2B}
+  .prof-name{color:#fff;font-size:13px;font-weight:600;line-height:1.1}
+  .prof-lock{font-size:10px;color:#9FB2C4;margin-top:3px}
+  .pin-modal{position:fixed;inset:0;background:rgba(8,18,30,.88);display:flex;align-items:center;justify-content:center;z-index:60;padding:20px}
+  .pin-card{background:#fff;border-radius:18px;padding:26px 22px;width:100%;max-width:320px;text-align:center;position:relative}
+  .pin-close{position:absolute;top:8px;right:12px;border:none;background:none;font-size:18px;color:var(--muted);cursor:pointer}
+  .pin-av{width:64px;height:64px;border-radius:50%;margin:0 auto 10px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:30px;color:#0B1B2B}
+  .pin-card h2{font-family:'Barlow Condensed',sans-serif;font-size:24px;line-height:1;margin-bottom:4px;color:var(--ink)}
+  #pin-input{width:170px;text-align:center;letter-spacing:14px;font-size:30px;font-weight:700;padding:10px;margin:16px auto;display:block;border:2px solid var(--line);border-radius:12px;color:var(--ink)}
+  #pin-input:focus{outline:none;border-color:var(--pitch)}
   .login-form{background:var(--surface);border-radius:20px;padding:22px;color:var(--ink);text-align:left;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .login-form .btn{margin-top:6px;width:100%}
   .form-note{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
@@ -127,20 +141,21 @@
     <div class="crest">🏆</div>
     <h1>Polla Familiar</h1>
     <div class="yr">2026</div>
-    <p class="sub">Pronostica el Mundial con la familia. Cada partido suma.</p>
-    <div class="login-form">
-      <div class="field" style="margin-bottom:10px">
-        <label>Tu correo</label>
-        <input id="in-email" type="email" inputmode="email" autocomplete="email" placeholder="nombre@correo.com">
-      </div>
-      <div class="field" style="margin-bottom:6px">
-        <label>Tu clave</label>
-        <input id="in-pass" type="password" autocomplete="current-password" placeholder="Mínimo 6 caracteres" onkeydown="if(event.key==='Enter')entrar()">
-      </div>
-      <button class="btn primary" id="btn-entrar" onclick="entrar()">Entrar</button>
-      <p class="form-note">La primera vez, escribe tu correo y crea una clave. Después entras con lo mismo.</p>
-      <div class="err" id="login-err"></div>
-    </div>
+    <p class="sub">Elige tu perfil para entrar.</p>
+    <div id="profiles" class="prof-grid"></div>
+    <div class="err" id="login-err" style="margin-top:12px;color:#FFB4B4"></div>
+  </div>
+</div>
+
+<div id="pinModal" class="pin-modal hidden">
+  <div class="pin-card fade-in">
+    <button class="pin-close" onclick="closePin()">✕</button>
+    <div class="pin-av" id="pin-av"></div>
+    <h2 id="pin-title">—</h2>
+    <p class="muted" id="pin-sub" style="font-size:13px"></p>
+    <input id="pin-input" inputmode="numeric" pattern="[0-9]*" maxlength="4" autocomplete="off" placeholder="••••" onkeydown="if(event.key==='Enter')submitPin()">
+    <button class="btn primary" id="pin-btn" onclick="submitPin()">Entrar</button>
+    <div class="err" id="pin-err" style="margin-top:8px"></div>
   </div>
 </div>
 
@@ -151,7 +166,7 @@
       <div class="who"><b id="who-name">—</b><span>jugando</span></div>
       <button id="admin-btn" class="icon-btn hidden" title="Admin" onclick="openAdmin()">🛠️</button>
       <button class="icon-btn" title="Cómo se juega" onclick="openInfo()">ℹ️</button>
-      <button class="icon-btn" title="Salir" onclick="logout()">⎋</button>
+      <button class="icon-btn" title="Cambiar perfil" onclick="logout()">⎋</button>
     </div>
   </div>
   <main id="view"></main>
@@ -194,48 +209,70 @@ function paint(html){const v=document.getElementById('view');v.innerHTML=html;v.
 function loading(){document.getElementById('view').innerHTML='<div class="loader"><div class="spin"></div></div>';}
 function emptyState(i,t,m){return '<div class="card empty"><div class="big">'+i+'</div><b style="font-size:16px">'+esc(t)+'</b><p class="muted" style="margin-top:6px">'+esc(m)+'</p></div>';}
 
-function lerr(m){document.getElementById('login-err').textContent=m||'';}
-async function entrar(){
-  const email=(document.getElementById('in-email').value||'').trim().toLowerCase();
-  const pass=(document.getElementById('in-pass').value||''); lerr('');
-  if(!email||!email.includes('@')){lerr('Escribe un correo válido.');return;}
-  if(pass.length<6){lerr('La clave debe tener al menos 6 caracteres.');return;}
-  const btn=document.getElementById('btn-entrar'); if(btn){btn.disabled=true;btn.textContent='Entrando…';}
-  // 1) intentar iniciar sesión con la clave
-  let { error } = await sb.auth.signInWithPassword({ email, password:pass });
-  if(!error) return; // onAuthStateChange -> boot
-  // 2) si no existe, crear la cuenta (primera vez)
-  const { data:su, error:errSignup } = await sb.auth.signUp({ email, password:pass });
-  if(btn){btn.disabled=false;btn.textContent='Entrar';}
-  if(errSignup){
-    if(/already|registered|exists/i.test(errSignup.message||'')) lerr('Esa clave no coincide con el correo. Revísala e intenta de nuevo.');
-    else lerr(errSignup.message);
-    return;
-  }
-  if(su && su.session) return; // creada con sesión activa -> boot
-  // sin sesión inmediata: confirmamos la cuenta del lado servidor y entramos
-  if(btn){btn.disabled=true;btn.textContent='Entrando…';}
-  try { await sb.rpc('confirm_email', { p_email: email }); } catch(e){}
-  let { error:e2 } = await sb.auth.signInWithPassword({ email, password:pass });
-  if(btn){btn.disabled=false;btn.textContent='Entrar';}
-  if(!e2) return;
-  lerr('No pudimos entrar. Si ya tienes cuenta, revisa tu clave; si es tu primera vez, intenta de nuevo.');
+function lerr(m){const el=document.getElementById('login-err'); if(el) el.textContent=m||'';}
+function perr(m){const el=document.getElementById('pin-err'); if(el) el.textContent=m||'';}
+function avatarColor(id){ const c=['#FFC83D','#15B66E','#4FA8E0','#E0794F','#B07FE0','#E04F8A','#3DC9C0','#9CCF3D','#E0B84F','#6FCF5B','#5B9BCF']; return c[id % c.length]; }
+function initialsOf(n){ return (n||'?').trim().slice(0,2).toUpperCase(); }
+function profEmail(id){ return 'profile'+id+'@pollafamiliar.app'; }
+function pinPass(pin){ return 'Pf26#'+pin; }
+let PROFILES=[], PICK=null;
+async function renderProfiles(){
+  lerr('');
+  const { data, error } = await sb.rpc('list_profiles');
+  const grid=document.getElementById('profiles'); if(!grid) return;
+  if(error || !data){ grid.innerHTML='<p class="sub" style="grid-column:1/-1">No se pudieron cargar los perfiles.</p>'; return; }
+  PROFILES=data;
+  grid.innerHTML=data.map(p=>
+    '<div class="prof-card" onclick="pickProfile('+p.id+')">'
+    +'<div class="prof-av" style="background:'+avatarColor(p.id)+'">'+esc(initialsOf(p.name))+'</div>'
+    +'<div class="prof-name">'+esc(p.name)+'</div>'
+    +'<div class="prof-lock">'+(p.has_pin?'🔒 clave':'➕ crear clave')+'</div></div>'
+  ).join('');
+}
+function pickProfile(id){
+  PICK=PROFILES.find(p=>p.id===id); if(!PICK) return;
+  const av=document.getElementById('pin-av'); av.textContent=initialsOf(PICK.name); av.style.background=avatarColor(PICK.id);
+  document.getElementById('pin-title').textContent='Hola, '+PICK.name;
+  document.getElementById('pin-sub').textContent=PICK.has_pin?'Ingresa tu clave de 4 dígitos':'Crea tu clave de 4 dígitos';
+  document.getElementById('pin-btn').textContent=PICK.has_pin?'Entrar':'Crear y entrar';
+  perr(''); const inp=document.getElementById('pin-input'); inp.value='';
+  document.getElementById('pinModal').classList.remove('hidden');
+  setTimeout(()=>inp.focus(),60);
+}
+function closePin(){ document.getElementById('pinModal').classList.add('hidden'); PICK=null; }
+async function submitPin(){
+  if(!PICK) return;
+  const pin=(document.getElementById('pin-input').value||'').trim(); perr('');
+  if(!/^[0-9]{4}$/.test(pin)){ perr('Son 4 dígitos numéricos.'); return; }
+  const btn=document.getElementById('pin-btn'); btn.disabled=true; const t0=btn.textContent; btn.textContent='Entrando…';
+  const email=profEmail(PICK.id), pass=pinPass(pin);
+  try{
+    if(PICK.has_pin){
+      const { error } = await sb.auth.signInWithPassword({ email, password:pass });
+      if(error){ perr('Clave incorrecta. Intenta de nuevo.'); }
+      return;
+    }
+    const { data:su, error:e1 } = await sb.auth.signUp({ email, password:pass });
+    if(e1 && !/already|registered|exists/i.test(e1.message||'')){ perr(e1.message); return; }
+    if(!(su && su.session)){
+      try{ await sb.rpc('confirm_email',{ p_email:email }); }catch(e){}
+      const { error:e2 } = await sb.auth.signInWithPassword({ email, password:pass });
+      if(e2){ perr('No se pudo crear la clave. Intenta de nuevo.'); return; }
+    }
+  } finally { btn.disabled=false; btn.textContent=t0; }
 }
 async function logout(){ await sb.auth.signOut(); location.reload(); }
 
 sb.auth.onAuthStateChange((_e, session)=>{ if(session) boot(); });
-(async ()=>{ const { data } = await sb.auth.getSession(); if(data.session) boot(); })();
+(async ()=>{ const { data } = await sb.auth.getSession(); if(data.session) boot(); else renderProfiles(); })();
 
 let booted=false;
 async function boot(){
   if(booted) return; booted=true;
-  let { data, error } = await sb.rpc('register_participant');
-  if(error && /NEED_NAME/.test(error.message||'')){
-    const name = await askName();
-    ({ data, error } = await sb.rpc('register_participant',{ p_name:name }));
-  }
-  if(error){ toast('No se pudo iniciar: '+error.message,'bad'); booted=false; return; }
+  let { data, error } = await sb.rpc('register_profile');
+  if(error){ toast('No se pudo iniciar tu perfil: '+error.message,'bad'); booted=false; return; }
   S.me = data;
+  document.getElementById('pinModal').classList.add('hidden');
   document.getElementById('login').classList.add('hidden');
   document.getElementById('app').classList.remove('hidden');
   document.getElementById('who-name').textContent = S.me.name;

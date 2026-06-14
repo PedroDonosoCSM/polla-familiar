@@ -532,11 +532,12 @@ function rankTiers(rows){
 function podStep(tier, place){
   if(!tier) return '<div class="pod-col"></div>';
   const medal=place===1?'🥇':place===2?'🥈':'🥉', cls=place===1?'gold':place===2?'silver':'bronze';
-  const ppl=tier.people, shown=ppl.slice(0,3);
+  const ppl=tier.people, shown=ppl.slice(0,3), n=ppl.length, hi=tier.rank+n-1;
   let names=shown.map(p=>'<div class="pod-person">'+avatarMarkup(p.id,p.name,22)+'<span class="pod-name">'+esc(p.name.split(' ')[0])+'</span></div>').join('');
   if(ppl.length>3) names+='<div class="pod-name" style="color:var(--muted)">+'+(ppl.length-3)+' más</div>';
+  const share = n>1 ? '<div style="font-size:10px;color:var(--muted);margin-top:1px">comparten '+tier.rank+'°–'+hi+'°</div>' : '';
   return '<div class="pod-col"><div class="pod-medal">'+medal+'</div>'
-    +'<div class="pod-people">'+names+'</div>'
+    +'<div class="pod-people">'+names+'</div>'+share
     +'<div class="pod-pts">'+tier.pts+' pts</div>'
     +'<div class="pod-block '+cls+'">'+place+'</div></div>';
 }
@@ -549,14 +550,16 @@ async function loadTabla(){
   if(rows.length===0) return paint(emptyState('🏅','Tabla vacía','Cuando se carguen resultados verás el ranking de la familia.'));
   const prev=snap.data||{};
   const tiers=rankTiers(rows);
-  const rankOf={}; tiers.forEach((t,i)=>t.people.forEach(p=>rankOf[p.id]=i+1));
+  let ahead=0; tiers.forEach(t=>{ t.rank=ahead+1; ahead+=t.people.length; });
+  const rankOf={}; tiers.forEach(t=>t.people.forEach(p=>rankOf[p.id]=t.rank));
+  const byRank=r=>tiers.find(t=>t.rank===r);
   const moveArrow=(id)=>{ const p=prev[id], c=rankOf[id]; if(p==null) return '';
     if(c<p) return ' <span style="color:var(--pitch);font-size:11px" title="subió">▲</span>';
     if(c>p) return ' <span style="color:var(--hot);font-size:11px" title="bajó">▼</span>';
     return ' <span style="color:var(--muted);font-size:10px">·</span>'; };
   let h='<div class="section-head"><div><div class="eyebrow">Clasificación</div><h2>Tabla general</h2></div></div>';
   if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
-    h+='<div class="podium">'+podStep(tiers[1],2)+podStep(tiers[0],1)+podStep(tiers[2],3)+'</div>';
+    h+='<div class="podium">'+podStep(byRank(2),2)+podStep(byRank(1),1)+podStep(byRank(3),3)+'</div>';
   }
   h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
@@ -565,7 +568,7 @@ async function loadTabla(){
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. Empatados comparten lugar. Gru = grupos · Eli = eliminatorias · Ext = extras.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. Empatados comparten el puesto y se reparten esos lugares; el siguiente salta los ocupados (ej: 3 en 1º → el que sigue es 4º). Gru = grupos · Eli = eliminatorias · Ext = extras.</p>';
   paint(h);
 }
 

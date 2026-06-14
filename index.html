@@ -126,6 +126,7 @@
   .pod-block.gold{height:84px;background:linear-gradient(#FFD451,#E2A400)}
   .pod-block.silver{height:64px;background:linear-gradient(#CBD4DE,#98A6B6)}
   .pod-block.bronze{height:50px;background:linear-gradient(#E2A36D,#AE6B34)}
+  .brk-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
   .login-form{background:var(--surface);border-radius:20px;padding:22px;color:var(--ink);text-align:left;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .login-form .btn{margin-top:6px;width:100%}
   .form-note{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
@@ -191,6 +192,7 @@
     <button data-tab="pred" class="active" onclick="go('pred')"><span class="ico">📝</span>Pronósticos</button>
     <button data-tab="tabla" onclick="go('tabla')"><span class="ico">🏅</span>Tabla</button>
     <button data-tab="res" onclick="go('res')"><span class="ico">📊</span>Resultados</button>
+    <button data-tab="llave" onclick="go('llave')"><span class="ico">🏆</span>Llave</button>
     <button data-tab="todos" onclick="go('todos')"><span class="ico">👀</span>La familia</button>
     <button data-tab="equipos" onclick="go('equipos')"><span class="ico">👕</span>Planteles</button>
   </nav>
@@ -208,7 +210,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 const FASE_ORDER = ['GRUPOS','DIECISEISAVOS','OCTAVOS','CUARTOS','SEMIS','TERCER_LUGAR','FINAL'];
 const NEUTRAL_FLAG = '⚪';
 const S = { me:null, tab:'pred', fase:null, fasesHab:[], phases:{}, config:null,
-            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[], avatars:{} };
+            fixture:[], preds:{}, extras:{}, teams:[], submissions:{}, fixTodos:[], avatars:{}, koRound:null };
 let PLAYERS_BY_NAME = {};
 
 function esc(s){return String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
@@ -348,7 +350,7 @@ async function loadReference(){
 }
 function subscribeLive(){
   sb.channel('live')
-    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); if(S.tab==='todos')loadTodos(); })
+    .on('postgres_changes',{event:'*',schema:'public',table:'matches'},()=>{ if(S.tab==='tabla')loadTabla(); if(S.tab==='res')loadResultados(); if(S.tab==='todos')loadTodos(); if(S.tab==='llave')loadLlave(); })
     .on('postgres_changes',{event:'*',schema:'public',table:'predictions'},()=>{ if(S.tab==='tabla')loadTabla(); })
     .subscribe();
 }
@@ -373,6 +375,7 @@ function go(tab){
   if(tab==='pred')return loadPred();
   if(tab==='tabla')return loadTabla();
   if(tab==='res')return loadResultados();
+  if(tab==='llave')return loadLlave();
   if(tab==='todos')return loadTodos();
   if(tab==='equipos')return loadEquipos();
 }
@@ -529,6 +532,42 @@ async function loadTabla(){
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
   h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">Empatados comparten lugar. Gru = grupos · Eli = eliminatorias · Ext = extras. Desempate por marcadores exactos.</p>';
+  paint(h);
+}
+
+const KO_ORDER=['DIECISEISAVOS','OCTAVOS','CUARTOS','SEMIS','FINAL','TERCER_LUGAR'];
+const KO_LBL={DIECISEISAVOS:'Dieciseisavos',OCTAVOS:'Octavos',CUARTOS:'Cuartos',SEMIS:'Semifinales',FINAL:'Final',TERCER_LUGAR:'Tercer lugar'};
+const KO_SHORT={DIECISEISAVOS:'16avos',OCTAVOS:'8vos',CUARTOS:'4tos',SEMIS:'Semis',FINAL:'Final',TERCER_LUGAR:'3º'};
+function koHuman(l){ if(!l) return 'Por definir'; if(/^G\.\d+$/.test(l)) return 'Ganador'; if(l==='TBD') return 'Por definir'; return l; }
+function koSide(team, label, win){
+  const nm = team ? (team.flag+' '+esc(team.name)) : '<span style="color:var(--muted)">'+esc(koHuman(label))+'</span>';
+  return '<span style="font-weight:'+(win?'800':'600')+'">'+nm+(win?' ✓':'')+'</span>';
+}
+function brkCard(m){
+  const played = m.status==='FINALIZADO'||m.status==='EN_JUEGO';
+  const center = played ? '<b class="tnum">'+(m.home_goals??0)+'–'+(m.away_goals??0)+'</b>'
+                        : '<span style="color:var(--muted);font-size:11px">'+(fmtFecha(m.kickoff_at)||'vs')+'</span>';
+  const hw=m.winner_team_id&&m.winner_team_id===m.home_team_id, aw=m.winner_team_id&&m.winner_team_id===m.away_team_id;
+  return '<div class="brk-card">'
+    +'<div style="font-size:14px">'+koSide(m.home_team,m.home_label,hw)+'</div>'
+    +'<div style="min-width:54px;text-align:center">'+center+'</div>'
+    +'<div style="font-size:14px;text-align:right">'+koSide(m.away_team,m.away_label,aw)+'</div></div>';
+}
+function selKo(f){ S.koRound=f; loadLlave(); }
+async function loadLlave(){
+  const { data } = await sb.from('matches')
+    .select('id,phase,status,home_goals,away_goals,winner_team_id,home_team_id,away_team_id,home_label,away_label,kickoff_at,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)')
+    .neq('phase','GRUPOS').order('id');
+  const all=data||[];
+  const present=KO_ORDER.filter(f=>all.some(m=>m.phase===f));
+  if(present.length===0) return paint(emptyState('🏆','Llave no disponible','La fase de eliminación aparecerá cuando termine la fase de grupos.'));
+  if(!present.includes(S.koRound)) S.koRound=present[0];
+  const sel=S.koRound;
+  let h='<div class="section-head"><div><div class="eyebrow">Eliminatorias</div><h2>La llave</h2></div></div>'
+    +'<p class="muted" style="font-size:12px;margin:-6px 2px 10px">El camino a la final. Se llena solo a medida que avanzan los partidos.</p>';
+  h+='<div class="phase-row">'+present.map(f=>'<button class="chip '+(sel===f?'active':'')+'" onclick="selKo(\''+f+'\')">'+KO_SHORT[f]+'</button>').join('')+'</div>';
+  h+='<div class="eyebrow" style="margin:8px 2px 10px">'+KO_LBL[sel]+'</div>';
+  h+=all.filter(m=>m.phase===sel).map(brkCard).join('');
   paint(h);
 }
 

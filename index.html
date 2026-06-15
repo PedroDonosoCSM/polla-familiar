@@ -1019,7 +1019,7 @@ async function adLoadUsers(){
       +(isMe?'':'<div style="display:flex;gap:6px;flex:none">'
         +'<button class="ad-mini" title="'+(u.is_admin?'Quitar admin':'Hacer admin')+'" onclick="adToggleAdmin('+u.id+')">'+(u.is_admin?'👤':'👑')+'</button>'
         +'<button class="ad-mini" title="'+(u.active?'Desactivar (ocultar de la tabla)':'Reactivar')+'" onclick="adToggleActive('+u.id+')">'+(u.active?'🚫':'✅')+'</button>'
-        +'<button class="ad-mini ad-del" title="Eliminar" onclick="adDelUser('+u.id+')">🗑️</button>'
+        +(u.has_pin?'<button class="ad-mini" title="Restablecer clave" onclick="adResetPin('+u.id+')">🔑</button>':'')
         +'</div>')
       +'</div>';
   }).join('');
@@ -1031,21 +1031,23 @@ async function adAddUser(){
   if(error){ toast('Error: '+error.message,'bad'); return; }
   inp.value=''; toast('Usuario agregado','ok'); adLoadUsers();
 }
-async function adDelUser(id){
+async function adResetPin(id){
   const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
-  if(!confirm('¿Eliminar a '+u.name+'? Se borran sus pronósticos y no se puede deshacer.')) return;
-  const { error }=await sb.rpc('admin_delete_user',{ p_id:id });
-  if(error){ toast(/NO_SELF/.test(error.message)?'No puedes eliminarte a ti mismo':'Error: '+error.message,'bad'); return; }
-  toast('Usuario eliminado','ok'); adLoadUsers();
+  if(!confirm('¿Restablecer la clave de '+u.name+'?\n\nSe borra su PIN actual; la próxima vez que entre tendrá que crear uno nuevo desde su perfil.')) return;
+  const { error }=await sb.rpc('admin_reset_pin',{ p_id:id });
+  if(error){ toast(/NO_SELF/.test(error.message)?'No puedes restablecer tu propia clave':'Error: '+error.message,'bad'); return; }
+  toast('Clave borrada. '+(u.name||'').split(' ')[0]+' creará una nueva al entrar.','ok'); adLoadUsers();
 }
 async function adToggleAdmin(id){
   const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
+  if(!confirm(u.is_admin?('¿Quitarle el rol de admin a '+u.name+'?'):('¿Hacer administrador a '+u.name+'?\n\nPodrá cargar resultados, habilitar fases y gestionar usuarios.'))) return;
   const { error }=await sb.rpc('admin_set_user',{ p_id:id, p_is_admin:!u.is_admin, p_can_submit:u.can_submit, p_active:u.active });
   if(error){ toast(/NO_SELF/.test(error.message)?'No puedes quitarte admin a ti mismo':'Error: '+error.message,'bad'); return; }
   toast(u.is_admin?'Ahora es jugador':'Ahora es admin','ok'); adLoadUsers();
 }
 async function adToggleActive(id){
   const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
+  if(!confirm(u.active?('¿Desactivar a '+u.name+'?\n\nDejará de aparecer en la tabla y no podrá entrar, pero sus pronósticos se conservan. Puedes reactivarlo cuando quieras.'):('¿Reactivar a '+u.name+'?'))) return;
   const { error }=await sb.rpc('admin_set_user',{ p_id:id, p_is_admin:u.is_admin, p_can_submit:u.can_submit, p_active:!u.active });
   if(error){ toast(/NO_SELF/.test(error.message)?'No puedes desactivarte a ti mismo':'Error: '+error.message,'bad'); return; }
   toast(u.active?'Desactivado: ya no aparece en la tabla':'Reactivado','ok'); adLoadUsers();

@@ -725,9 +725,9 @@ function resRow(r, mode){
   const aList = r.away_scorers ? esc(r.away_scorers).split(', ') : [];
   const missH = Math.max(0,(r.home_goals||0)-hList.length);
   const missA = Math.max(0,(r.away_goals||0)-aList.length);
-  let scH = hList.length ? '⚽ '+hList.join('<br>') : '';
+  let scH = hList.length ? hList.map(s=>'⚽ '+s).join('<br>') : '';
   if(missH>0) scH += (scH?'<br>':'')+'<span style="opacity:.6">+'+missH+' gol s/ detalle</span>';
-  let scA = aList.length ? aList.join('<br>')+' ⚽' : '';
+  let scA = aList.length ? aList.map(s=>s+' ⚽').join('<br>') : '';
   if(missA>0) scA += (scA?'<br>':'')+'<span style="opacity:.6">+'+missA+' gol s/ detalle</span>';
   if((mode==='live'||mode==='fin') && (scH||scA)){
     h+='<div style="display:flex;gap:12px;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px;line-height:1.5">'

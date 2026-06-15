@@ -626,7 +626,9 @@ async function loadTabla(){
     return ' <span style="color:var(--muted);font-size:10px">·</span>'; };
   let h='<div class="section-head"><div><div class="eyebrow">Clasificación</div><h2>Tabla general</h2></div></div>';
   if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
-    h+='<div class="podium">'+podStep(byRank(2),2)+podStep(byRank(1),1)+podStep(byRank(3),3)+'</div>';
+    const steps=[[byRank(2),2],[byRank(1),1],[byRank(3),3]].filter(s=>s[0]);
+    h+='<div class="podium" style="grid-template-columns:repeat('+steps.length+',minmax(0,1fr));max-width:'+(steps.length*150)+'px;margin-left:auto;margin-right:auto">'
+      +steps.map(s=>podStep(s[0],s[1])).join('')+'</div>';
   }
   if(hasPrizes()){ const pool=prizePool(), tot=pool.reduce((a,b)=>a+b,0);
     h+='<p class="muted center" style="font-size:12px;margin:-2px 2px 12px">💰 Pozo '+fmtCLP(tot)+' · 1° '+fmtCLP(pool[0])+' · 2° '+fmtCLP(pool[1])+' · 3° '+fmtCLP(pool[2])+'</p>';

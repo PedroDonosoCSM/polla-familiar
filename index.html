@@ -578,7 +578,7 @@ function traduce(c){return ({LOCKED:'Esta fase ya fue enviada',SUBMIT_CLOSED:'El
 
 function rankTiers(rows){
   const tiers=[]; let cur=null;
-  rows.forEach(r=>{ const key=(r.pts_total||0)+'_'+(r.exact_count||0);
+  rows.forEach(r=>{ const key=(r.pts_total||0)+'_'+(r.exact_count||0)+'_'+(r.winner_count||0);
     if(!cur || cur.key!==key){ cur={key,pts:r.pts_total||0,people:[]}; tiers.push(cur); }
     cur.people.push(r);
   });
@@ -643,7 +643,7 @@ async function loadTabla(){
       +'<td class="tnum" style="color:var(--pitch);font-weight:700">'+(r.exact_count||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. <b style="color:var(--pitch)">Exa</b> = marcadores exactos (desempate entre quienes tienen los mismos puntos). Empatados comparten el puesto; el siguiente salta los ocupados.'
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. <b style="color:var(--pitch)">Exa</b> = marcadores exactos. Empate: primero más exactos, luego más ganadores acertados.'
     +(hasPrizes()?' <b style="color:var(--pitch)">💰</b> = premio si la tabla terminara así ahora (empatados suman los montos de sus puestos y los reparten en partes iguales).':'')+'</p>';
   paint(h);
 }
@@ -966,24 +966,30 @@ function filtraEq(){const q=(document.getElementById('eq-q').value||'').toLowerC
 function openInfo(){
   const rows=FASE_ORDER.map(f=>{const p=S.phases[f]||{};return '<div>'+esc(p.label||f)+'</div><b class="center">+'+(p.points_exact||'')+'</b><b class="center">+'+(p.points_winner||'')+'</b>';}).join('');
   const bs=Number(S.config.bonus_top_scorer)||5, bm=Number(S.config.bonus_mvp)||5, b1=Number(S.config.bonus_one_finalist)||2, b2=Number(S.config.bonus_both_finalists)||6;
-  const pool=prizePool(), tot=pool.reduce((a,b)=>a+b,0);
-  const premios = hasPrizes()
-    ? '<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;align-items:center"><div>🥇 1° lugar</div><b class="center">'+fmtCLP(pool[0])+'</b><div>🥈 2° lugar</div><b class="center">'+fmtCLP(pool[1])+'</b><div>🥉 3° lugar</div><b class="center">'+fmtCLP(pool[2])+'</b><div class="muted">Pozo total</div><b class="center">'+fmtCLP(tot)+'</b></div>'
-      +'<p class="muted" style="font-size:12px;margin-top:10px">Si dos o más empatan en un puesto (mismos puntos y mismos exactos), <b>suman los montos de los puestos que ocupan y los reparten en partes iguales</b>. Ej: empate en el 1° entre dos → cada uno recibe (1°+2°)÷2 y el siguiente se lleva el 3° completo. La tabla muestra el reparto en vivo con el 💰.</p>'
-    : '<p class="muted" style="font-size:13px">Los montos los define el organizador (aún no cargados). Regla de reparto: si dos o más empatan en un puesto (mismos puntos y exactos), suman los montos de los puestos que ocupan y los reparten en partes iguales; el siguiente toma el puesto que sigue.</p>';
+  const pool=prizePool();
+  const dls=[['Fase de grupos','11 jun · 14:59 (Chile)'],['16avos de final','27 jun'],['8vos de final','3 jul'],['Cuartos de final','8 jul'],['Semifinales','13 jul'],['3er y 4to lugar','17 jul'],['Final','18 jul']].map(d=>'<div>'+d[0]+'</div><b class="center" style="font-weight:600">'+d[1]+'</b>').join('');
+  const euro={60000:'€100',30000:'€50',20000:'€20'};
+  const prizeRows=[['🥇 1er lugar',pool[0]],['🥈 2do lugar',pool[1]],['🥉 3er lugar',pool[2]]].map(p=>'<div>'+p[0]+'</div><b class="center">'+fmtCLP(p[1])+(euro[p[1]]?' <span class="muted" style="font-weight:400">o '+euro[p[1]]+'</span>':'')+'</b>').join('');
   document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Cómo se juega</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
     +'<p class="muted" style="font-size:13px;margin-bottom:16px">Pronostica el <b>marcador exacto</b> de cada partido. Mientras más avanza el torneo, más valen los aciertos.</p>'
-    +'<div class="eyebrow" style="margin-bottom:8px">Puntos por partido</div>'
-    +'<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 12px;font-size:14px;align-items:center"><div class="eyebrow">Fase</div><div class="eyebrow center">Exacto</div><div class="eyebrow center">Ganador</div>'+rows+'</div>'
-    +'<p class="muted" style="font-size:12px;margin-top:8px"><b>Exacto</b>: clavas el marcador (ej. 2-1). <b>Ganador</b>: aciertas quién gana o que es empate, pero no el marcador justo.</p>'
-    +'<div class="eyebrow" style="margin:20px 0 8px">Apuestas especiales</div>'
-    +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px"><div>🥇 Goleador del torneo</div><b class="center">+'+bs+'</b><div>⭐ MVP del torneo</div><b class="center">+'+bm+'</b><div>🏁 Un finalista correcto</div><b class="center">+'+b1+'</b><div>🏁 Los dos finalistas</div><b class="center">+'+b2+'</b></div>'
-    +'<div class="eyebrow" style="margin:20px 0 8px">Desempate</div>'
-    +'<p class="muted" style="font-size:13px">Si hay empate en puntos, va primero quien tenga <b>más marcadores exactos</b>. Si aún siguen iguales, comparten el puesto.</p>'
+    +'<div class="eyebrow" style="margin-bottom:6px">Participación</div>'
+    +'<p class="muted" style="font-size:13px">Participa todo el grupo con un email válido. Cada uno se registra una vez y elige el nombre con que aparece en la tabla. Vicente envía sus predicciones a Yoda antes que el resto.</p>'
     +'<div class="eyebrow" style="margin:20px 0 8px">Plazos de envío</div>'
-    +'<p class="muted" style="font-size:13px">Cada fase tiene un plazo límite (antes de su primer partido). Una vez que envías una fase <b>no se puede cambiar</b>. Las fases se van abriendo a medida que avanza el torneo.</p>'
+    +'<p class="muted" style="font-size:13px;margin-bottom:10px">Cada ronda se envía antes del primer partido de esa ronda. Una vez enviada, no se modifica.</p>'
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px">'+dls+'</div>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Puntos por partido</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 12px;font-size:14px;align-items:center"><div class="eyebrow">Fase</div><div class="eyebrow center">Exacto</div><div class="eyebrow center">Ganador</div>'+rows+'</div>'
+    +'<p class="muted" style="font-size:12px;margin-top:8px"><b>Exacto</b>: clavas el marcador. <b>Ganador</b>: aciertas quién gana (o el empate) sin el marcador justo. En eliminatorias el resultado se evalúa <b>al minuto 90</b>, sin prórroga ni penales.</p>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Predicciones especiales</div>'
+    +'<p class="muted" style="font-size:12px;margin-bottom:8px">Se envían junto con la fase de grupos.</p>'
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px"><div>🥇 Goleador del torneo</div><b class="center">+'+bs+'</b><div>⭐ MVP / Balón de Oro</div><b class="center">+'+bm+'</b><div>🏁 Un finalista acertado</div><b class="center">+'+b1+'</b><div>🏁 Ambos finalistas</div><b class="center">+'+b2+'</b></div>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Predicciones de los demás</div>'
+    +'<p class="muted" style="font-size:13px">Se revelan al iniciar cada ronda, o antes si todos ya enviaron sus predicciones de esa ronda.</p>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Ganador y desempate</div>'
+    +'<p class="muted" style="font-size:13px">Gana quien acumule más puntos en todo el Mundial (partidos + especiales). Si hay empate, se ordena por: 1) más marcadores exactos · 2) más ganadores acertados · 3) goleador acertado · 4) más finalistas acertados.</p>'
     +'<div class="eyebrow" style="margin:20px 0 8px">Premios 💰</div>'
-    +premios
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;align-items:center">'+prizeRows+'</div>'
+    +'<p class="muted" style="font-size:12px;margin-top:8px">Gift Card para comprar en el Mall. Si dos o más empatan en un puesto, esos puestos suman sus montos y se reparten en partes iguales (la tabla lo muestra en vivo con el 💰).</p>'
     +'</div></div></div>';
 }
 function closeModal(){document.getElementById('modal-root').innerHTML='';}

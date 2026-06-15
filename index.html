@@ -126,7 +126,7 @@
   .jc-st.fin{color:var(--pitch)}.jc-st.live{color:var(--hot)}.jc-st.next{color:var(--muted)}
   .jc-body{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:13px 14px 11px}
   .jc-team{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
-  .jc-flag{font-size:30px;line-height:1}
+  .jc-flagimg{width:34px;height:23px;object-fit:cover;border-radius:3px;display:block;box-shadow:0 0 0 1px rgba(0,0,0,.07)}
   .jc-name{font-size:12px;color:var(--ink);font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .jc-score{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:23px;background:var(--ink);color:#fff;padding:6px 15px;border-radius:11px;min-width:60px;text-align:center;letter-spacing:.02em}
   .jc-score.live{background:var(--hot)}
@@ -780,9 +780,15 @@ function resRow(r, mode){
   return h;
 }
 function modeOf(r){ return r.status==='EN_JUEGO'?'live':(r.status==='FINALIZADO'?'fin':'next'); }
+function flagImg(flag){
+  if(!flag) return '';
+  const cps=[...String(flag)].map(c=>c.codePointAt(0)).filter(c=>c!==0xFE0F);
+  if(!cps.length) return '';
+  const hex=cps.map(c=>c.toString(16)).join('-');
+  return '<img class="jc-flagimg" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/'+hex+'.svg" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+}
 function jcTeam(t){
-  const fl=t.flag?'<div class="jc-flag">'+t.flag+'</div>':'';
-  return '<div class="jc-team">'+fl+'<div class="jc-name">'+esc(t.name)+'</div></div>';
+  return '<div class="jc-team">'+flagImg(t.flag)+'<div class="jc-name">'+esc(t.name)+'</div></div>';
 }
 function jugCard(r, mode, myp){
   const hh=teamOf(r,'home'), aa=teamOf(r,'away');

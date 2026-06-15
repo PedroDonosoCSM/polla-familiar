@@ -139,6 +139,10 @@
   .jc-badge.win{background:rgba(255,200,61,.24);color:#8A6300}
   .jc-badge.miss{background:#FBE3E8;color:#B4304B}
   .jc-badge.none{background:#EEF2F0;color:var(--muted)}
+  .res-sec-h{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;margin:16px 2px 8px;font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);user-select:none}
+  .res-sec-n{display:inline-grid;place-items:center;min-width:20px;height:18px;padding:0 6px;border-radius:999px;background:#EEF2F0;color:var(--ink);font-size:11px;letter-spacing:0;margin-left:7px}
+  .res-sec-car{transition:transform .15s;font-size:13px}
+  .res-sec-h.open .res-sec-car{transform:rotate(180deg)}
   .login-wrap{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(140% 120% at 50% -10%, #1B3556 0%, var(--ink) 55%, #0A1A2E 100%)}
   .login-card{width:100%;max-width:380px;text-align:center;color:#fff}
   .login-card .crest{font-size:54px;margin-bottom:6px}
@@ -780,6 +784,13 @@ function resRow(r, mode){
   return h;
 }
 function modeOf(r){ return r.status==='EN_JUEGO'?'live':(r.status==='FINALIZADO'?'fin':'next'); }
+function toggleSec(key){
+  S.secOpen=S.secOpen||{};
+  S.secOpen[key]=!S.secOpen[key];
+  const c=document.getElementById('sec-'+key), hh=document.getElementById('sech-'+key);
+  if(c) c.classList.toggle('hidden', !S.secOpen[key]);
+  if(hh) hh.classList.toggle('open', S.secOpen[key]);
+}
 function flagImg(flag){
   if(!flag) return '';
   const cps=[...String(flag)].map(c=>c.codePointAt(0)).filter(c=>c!==0xFE0F);
@@ -876,17 +887,22 @@ function renderRes(){
     if(list.length===0) h+='<div class="card empty" style="padding:22px">Sin partidos en este grupo.</div>';
     list.forEach(r=>{ h+=jugCard(r, modeOf(r), S.myPreds[r.id]); });
   }else{
+    S.secOpen=S.secOpen||{};
     if(live.length){
       h+='<div class="eyebrow" style="margin:8px 2px 8px;color:var(--hot)">🔴 En vivo</div>';
       live.forEach(r=>{ h+=jugCard(r,'live',S.myPreds[r.id]); });
     }
     if(fin.length){
-      h+='<div class="eyebrow" style="margin:16px 2px 8px">✅ Jugados</div>';
+      h+='<div id="sech-fin" class="res-sec-h'+(S.secOpen.fin?' open':'')+'" onclick="toggleSec(\'fin\')"><span>✅ Jugados<span class="res-sec-n">'+fin.length+'</span></span><span class="res-sec-car">▾</span></div>';
+      h+='<div id="sec-fin"'+(S.secOpen.fin?'':' class="hidden"')+'>';
       fin.forEach(r=>{ h+=jugCard(r,'fin',S.myPreds[r.id]); });
+      h+='</div>';
     }
     if(next.length){
-      h+='<div class="eyebrow" style="margin:16px 2px 8px">⏳ Próximos</div>';
+      h+='<div id="sech-next" class="res-sec-h'+(S.secOpen.next?' open':'')+'" onclick="toggleSec(\'next\')"><span>⏳ Próximos<span class="res-sec-n">'+next.length+'</span></span><span class="res-sec-car">▾</span></div>';
+      h+='<div id="sec-next"'+(S.secOpen.next?'':' class="hidden"')+'>';
       next.forEach(r=>{ h+=jugCard(r,'next',S.myPreds[r.id]); });
+      h+='</div>';
     }
   }
   if(live.length) h+='<p class="muted center" style="font-size:12px;margin-top:10px">La tabla suma el marcador en vivo; queda firme al terminar.</p>';

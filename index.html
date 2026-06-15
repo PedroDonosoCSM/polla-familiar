@@ -41,6 +41,15 @@
   .nav button.active{color:var(--ink)}
   .nav button.active::after{content:"";width:18px;height:3px;border-radius:3px;background:var(--pitch);margin-top:1px}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow)}
+  .bp-cat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;margin-bottom:12px}
+  .bp-cat-h{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:15px;padding:11px 16px;background:linear-gradient(180deg,#F4F7F5,#FFF);border-bottom:1px solid var(--line)}
+  .bp-row{display:flex;gap:12px;padding:11px 16px;border-bottom:1px solid var(--line);align-items:center;flex-wrap:wrap}
+  .bp-row:last-child{border-bottom:none}
+  .bp-pick{flex:0 0 auto;min-width:118px;font-family:'Barlow Condensed',sans-serif;font-size:18px;line-height:1.1;display:flex;align-items:center;gap:5px}
+  .bp-name{font-weight:700;color:var(--ink)}
+  .bp-who{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 180px}
+  .bp-chip{display:inline-flex;align-items:center;gap:6px;background:#F4F7F5;border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 3px;font-size:13px;font-weight:600;color:var(--ink)}
+  .bp-empty{padding:12px 16px;color:var(--muted);font-size:13px}
   .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:4px 2px 12px}
   .section-head h2{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:24px;text-transform:uppercase;letter-spacing:.02em}
   .eyebrow{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;letter-spacing:.18em;color:var(--pitch);text-transform:uppercase}
@@ -824,7 +833,7 @@ async function loadTodos(){
   if(!S.config.predictions_visible) return paint(emptyState('🤫','Pronósticos ocultos','Las predicciones de todos se revelan al cerrar la fase de grupos.'));
   const [fx, ex, sc] = await Promise.all([
     sb.from('matches').select(MATCH_COLS).eq('phase','GRUPOS').eq('enabled',true).order('id'),
-    sb.from('bonus_predictions').select('points,participant:participant_id(name),top_scorer:top_scorer_id(name),mvp:mvp_id(name),finalist1:finalist1_id(name,flag),finalist2:finalist2_id(name,flag)'),
+    sb.from('bonus_predictions').select('points,participant:participant_id(id,name,avatar_url),top_scorer:top_scorer_id(id,name),mvp:mvp_id(id,name),finalist1:finalist1_id(id,name,flag),finalist2:finalist2_id(id,name,flag)'),
     sb.rpc('get_scorers')
   ]);
   S.fixTodos=fx.data||[];
@@ -856,18 +865,36 @@ async function loadTodos(){
   h+='<div id="tm-out"></div>';
   const exr=(ex.data||[]).filter(e=>e.top_scorer||e.mvp||e.finalist1||e.finalist2);
   if(exr.length){
-    h+='<div class="eyebrow" style="margin:18px 2px 8px">Apuestas especiales</div>'
-      +'<p class="muted" style="font-size:12px;margin:-4px 2px 8px">El 🔥 marca a quien eligió al goleador que va liderando (suma '+(S.config.bonus_top_scorer||5)+' pts provisorios).</p>'
-      +'<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>Jugador</th><th style="text-align:left">Goleador</th><th style="text-align:left">MVP</th><th style="text-align:left">Finalistas</th></tr></thead><tbody>';
-    exr.forEach(e=>{ const fins=[e.finalist1,e.finalist2].filter(Boolean).map(t=>t.flag+esc(t.name)).join(' · ');
-      const sg=pickScorer(e.top_scorer?.name, scorers);
-      const lead = sg && sg.goals===topGoals && topGoals>0;
-      let gol = e.top_scorer?.name ? esc(e.top_scorer.name) : '—';
-      if(sg) gol += ' <span style="color:var(--pitch);font-weight:600">'+sg.goals+'⚽</span>';
-      if(lead) gol += ' 🔥';
-      h+='<tr><td style="text-align:left;font-weight:600">'+esc(e.participant?.name)+'</td><td style="text-align:left">'+gol+'</td><td style="text-align:left">'+esc(e.mvp?.name||'—')+'</td><td style="text-align:left">'+(fins||'—')+'</td></tr>';
-    });
-    h+='</tbody></table></div>';
+    exr.forEach(e=>{ if(e.participant) S.avatars[e.participant.id]=e.participant.avatar_url||S.avatars[e.participant.id]||null; });
+    const pchip=p=>'<span class="bp-chip">'+avatarMarkup(p.id,p.name,22)+esc((p.name||'').split(' ')[0])+'</span>';
+    const whoChips=arr=>arr.map(pchip).join('');
+    const betRow=(left,who)=>'<div class="bp-row"><div class="bp-pick">'+left+'</div><div class="bp-who">'+whoChips(who)+'</div></div>';
+    const groupBy=(key)=>{ const m=new Map(); exr.forEach(e=>{ const items=key(e); items.forEach(it=>{ if(!it.obj) return; if(!m.has(it.obj.id)) m.set(it.obj.id,{obj:it.obj,who:[]}); m.get(it.obj.id).who.push(e.participant); }); }); return [...m.values()]; };
+
+    // Goleador (ordenado por goles actuales y luego por nº de votos)
+    const gol=groupBy(e=>[{obj:e.top_scorer}]).map(g=>{ const sg=pickScorer(g.obj.name,scorers); return {...g,goals:sg?sg.goals:-1,lead:sg&&sg.goals===topGoals&&topGoals>0}; })
+      .sort((a,b)=> b.goals-a.goals || b.who.length-a.who.length || a.obj.name.localeCompare(b.obj.name));
+    // MVP y Finalistas (ordenados por nº de votos)
+    const mvp=groupBy(e=>[{obj:e.mvp}]).sort((a,b)=> b.who.length-a.who.length || a.obj.name.localeCompare(b.obj.name));
+    const fin=groupBy(e=>[{obj:e.finalist1},{obj:e.finalist2}]).sort((a,b)=> b.who.length-a.who.length || a.obj.name.localeCompare(b.obj.name));
+
+    h+='<div class="eyebrow" style="margin:20px 2px 8px">Apuestas especiales</div>'
+      +'<p class="muted" style="font-size:12px;margin:-4px 2px 10px">Quién eligió a quién. El 🔥 marca al goleador que va liderando (+'+(S.config.bonus_top_scorer||5)+' pts provisorios).</p>';
+
+    h+='<div class="bp-cat"><div class="bp-cat-h">🥇 Goleador del torneo</div>';
+    if(gol.length) gol.forEach(g=>{ let lab='<span class="bp-name">'+esc(g.obj.name)+'</span>'; if(g.goals>=0) lab+=' <span style="color:var(--pitch);font-weight:700">'+g.goals+'⚽</span>'; if(g.lead) lab+=' 🔥'; h+=betRow(lab,g.who); });
+    else h+='<div class="bp-empty">Nadie eligió goleador.</div>';
+    h+='</div>';
+
+    h+='<div class="bp-cat"><div class="bp-cat-h">⭐ MVP del torneo</div>';
+    if(mvp.length) mvp.forEach(g=>{ h+=betRow('<span class="bp-name">'+esc(g.obj.name)+'</span>',g.who); });
+    else h+='<div class="bp-empty">Nadie eligió MVP.</div>';
+    h+='</div>';
+
+    h+='<div class="bp-cat"><div class="bp-cat-h">🏁 Finalistas</div>';
+    if(fin.length) fin.forEach(g=>{ h+=betRow('<span class="bp-name">'+(g.obj.flag||'')+' '+esc(g.obj.name)+'</span>',g.who); });
+    else h+='<div class="bp-empty">Nadie eligió finalistas.</div>';
+    h+='</div>';
   }
   paint(h);
 }

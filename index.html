@@ -950,8 +950,10 @@ function openInfo(){
 function closeModal(){document.getElementById('modal-root').innerHTML='';}
 
 async function openAdmin(){
-  const { data:fin } = await sb.from('matches').select(MATCH_COLS).eq('enabled',true).neq('status','FINALIZADO').order('id').limit(80);
-  const opts=(fin||[]).map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');return '<option value="'+m.id+'">#'+m.id+' '+esc(a.name)+' vs '+esc(b.name)+'</option>';}).join('');
+  const nowIso=new Date().toISOString();
+  const { data:fin } = await sb.from('matches').select(MATCH_COLS).eq('enabled',true).neq('status','FINALIZADO').lte('kickoff_at',nowIso).order('kickoff_at',{ascending:false}).limit(80);
+  const pend=fin||[];
+  const opts=pend.map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');const est=m.status==='EN_JUEGO'?('en juego'+(m.live_clock?' '+esc(m.live_clock):'')):'sin cargar';return '<option value="'+m.id+'">#'+m.id+' '+esc(a.name)+' vs '+esc(b.name)+' · '+est+'</option>';}).join('');
   const phaseOpts=FASE_ORDER.map(f=>'<option value="'+f+'">'+esc(S.phases[f]?.label||f)+'</option>').join('');
   document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Admin</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
     +'<div class="modal-tabs">'
@@ -961,11 +963,14 @@ async function openAdmin(){
       +'<button class="chip" data-at="users" onclick="adTab(\'users\')">👥 Usuarios</button>'
     +'</div>'
     +'<div class="at-panel" data-at="res">'
-      +'<div class="field"><label>Partido</label><select id="ad-m">'+opts+'</select></div>'
-      +'<div class="grid2"><div class="field"><label>Local</label><input id="ad-h" inputmode="numeric"></div><div class="field"><label>Visita</label><input id="ad-a" inputmode="numeric"></div></div>'
-      +'<div class="field"><label>Goleadores local</label><input id="ad-hs" placeholder="opcional"></div>'
-      +'<div class="field"><label>Goleadores visita</label><input id="ad-as" placeholder="opcional"></div>'
-      +'<button class="btn primary" style="width:100%" onclick="adResult()">Guardar resultado</button>'
+      +'<p class="muted" style="font-size:12px;margin:0 2px 12px">Solo para emergencias: si la API no cargó un partido que <b>ya terminó</b>. Aquí salen únicamente los partidos ya empezados que la API aún no confirma. Si ESPN trae el dato después, lo sincroniza solo.</p>'
+      +(pend.length
+        ? '<div class="field"><label>Partido sin confirmar</label><select id="ad-m">'+opts+'</select></div>'
+          +'<div class="grid2"><div class="field"><label>Local</label><input id="ad-h" inputmode="numeric"></div><div class="field"><label>Visita</label><input id="ad-a" inputmode="numeric"></div></div>'
+          +'<div class="field"><label>Goleadores local</label><input id="ad-hs" placeholder="opcional"></div>'
+          +'<div class="field"><label>Goleadores visita</label><input id="ad-as" placeholder="opcional"></div>'
+          +'<button class="btn primary" style="width:100%" onclick="adResult()">Guardar resultado</button>'
+        : '<div class="bp-empty" style="text-align:center">✅ Todo al día. La API confirmó todos los partidos jugados; no hay nada que cargar a mano.</div>')
     +'</div>'
     +'<div class="at-panel hidden" data-at="fase">'
       +'<div class="field"><label>Fase a habilitar</label><select id="ad-ph">'+phaseOpts+'</select></div>'

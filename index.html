@@ -126,8 +126,8 @@
   .jc-st.fin{color:var(--pitch)}.jc-st.live{color:var(--hot)}.jc-st.next{color:var(--muted)}
   .jc-body{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:13px 14px 11px}
   .jc-team{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
-  .jc-code{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:21px;line-height:1;color:var(--ink)}
-  .jc-name{font-size:11px;color:var(--muted);line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+  .jc-flag{font-size:30px;line-height:1}
+  .jc-name{font-size:12px;color:var(--ink);font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .jc-score{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:23px;background:var(--ink);color:#fff;padding:6px 15px;border-radius:11px;min-width:60px;text-align:center;letter-spacing:.02em}
   .jc-score.live{background:var(--hot)}
   .jc-when{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;color:var(--muted);text-align:center;min-width:64px;line-height:1.15}
@@ -780,17 +780,9 @@ function resRow(r, mode){
   return h;
 }
 function modeOf(r){ return r.status==='EN_JUEGO'?'live':(r.status==='FINALIZADO'?'fin':'next'); }
-function flagCode(f){
-  if(!f) return '';
-  const cp=[...String(f)].map(c=>c.codePointAt(0));
-  if(cp.length>=2 && cp[0]>=0x1F1E6 && cp[0]<=0x1F1FF && cp[1]>=0x1F1E6 && cp[1]<=0x1F1FF)
-    return String.fromCharCode(65+cp[0]-0x1F1E6)+String.fromCharCode(65+cp[1]-0x1F1E6);
-  return '';
-}
 function jcTeam(t){
-  const code=flagCode(t.flag);
-  if(code) return '<div class="jc-team"><div class="jc-code">'+code+'</div><div class="jc-name">'+t.flag+' '+esc(t.name)+'</div></div>';
-  return '<div class="jc-team"><div class="jc-code" style="font-size:14px">'+esc(t.name)+'</div></div>';
+  const fl=t.flag?'<div class="jc-flag">'+t.flag+'</div>':'';
+  return '<div class="jc-team">'+fl+'<div class="jc-name">'+esc(t.name)+'</div></div>';
 }
 function jugCard(r, mode, myp){
   const hh=teamOf(r,'home'), aa=teamOf(r,'away');

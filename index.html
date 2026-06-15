@@ -50,6 +50,13 @@
   .bp-who{display:flex;flex-wrap:wrap;gap:6px;flex:1 1 180px}
   .bp-chip{display:inline-flex;align-items:center;gap:6px;background:#F4F7F5;border:1px solid var(--line);border-radius:999px;padding:3px 11px 3px 3px;font-size:13px;font-weight:600;color:var(--ink)}
   .bp-empty{padding:12px 16px;color:var(--muted);font-size:13px}
+  .ad-user{display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+  .ad-user:first-child{border-top:none}
+  .ad-badge{display:inline-block;font-size:10px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:2px 7px;border-radius:999px;background:#EEF2F0;color:var(--muted)}
+  .ad-badge-admin{background:var(--gold);color:#5A4500}
+  .ad-badge-off{background:#FBE3E8;color:#B4304B}
+  .ad-mini{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:6px 9px;font-size:14px;cursor:pointer;flex:none}
+  .ad-mini.ad-del{border-color:#F3C9D2}
   .section-head{display:flex;align-items:baseline;justify-content:space-between;margin:4px 2px 12px}
   .section-head h2{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:24px;text-transform:uppercase;letter-spacing:.02em}
   .eyebrow{font-family:'Barlow Condensed',sans-serif;font-weight:600;font-size:12px;letter-spacing:.18em;color:var(--pitch);text-transform:uppercase}
@@ -958,7 +965,12 @@ async function openAdmin(){
     +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="ad-vis" '+(S.config.predictions_visible?'checked':'')+'> Mostrar pronósticos de todos</label>'
     +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="ad-sub" '+(S.config.submissions_open?'checked':'')+'> Permitir envío definitivo</label>'
     +'<button class="btn ghost" style="width:100%" onclick="adFlags()">Guardar visibilidad</button>'
+    +'<div class="eyebrow" style="margin:22px 0 8px">Mantención de usuarios</div>'
+    +'<div class="field" style="margin-bottom:8px"><input id="ad-newuser" placeholder="Nombre del nuevo usuario" autocomplete="off"></div>'
+    +'<button class="btn primary" style="width:100%" onclick="adAddUser()">➕ Agregar usuario</button>'
+    +'<div id="ad-users" style="margin-top:14px"></div>'
     +'</div></div></div>';
+  adLoadUsers();
 }
 async function adResult(){
   const id=Number(document.getElementById('ad-m').value);
@@ -971,6 +983,49 @@ async function adPhase(){const { error }=await sb.rpc('enable_phase',{p_phase:do
 async function adFlags(){const { error }=await sb.rpc('set_flags',{p_predictions_visible:document.getElementById('ad-vis').checked,p_submissions_open:document.getElementById('ad-sub').checked});
   if(!error){S.config.predictions_visible=document.getElementById('ad-vis').checked;S.config.submissions_open=document.getElementById('ad-sub').checked;}
   toast(error?'Error':'Guardado',error?'bad':'ok');}
+
+let ADMIN_USERS=[];
+async function adLoadUsers(){
+  const box=document.getElementById('ad-users'); if(!box) return;
+  box.innerHTML='<p class="muted" style="font-size:13px">Cargando usuarios…</p>';
+  const { data, error } = await sb.rpc('admin_list_users');
+  if(error){ box.innerHTML='<p class="muted" style="font-size:13px">No se pudo cargar: '+esc(error.message)+'</p>'; return; }
+  ADMIN_USERS=data||[];
+  if(!ADMIN_USERS.length){ box.innerHTML='<p class="muted" style="font-size:13px">Sin usuarios.</p>'; return; }
+  box.innerHTML=ADMIN_USERS.map(u=>{
+    const badges=[ u.is_admin?'<span class="ad-badge ad-badge-admin">Admin</span>':'<span class="ad-badge">Jugador</span>' ];
+    if(!u.active) badges.push('<span class="ad-badge ad-badge-off">Inactivo</span>');
+    badges.push('<span class="ad-badge'+(u.has_pin?'':' ad-badge-off')+'">'+(u.has_pin?'🔒 clave':'sin clave')+'</span>');
+    const isMe=S.me&&u.id===S.me.id;
+    return '<div class="ad-user">'+avatarMarkup(u.id,u.name,34)
+      +'<div style="flex:1;min-width:0"><div style="font-weight:600">'+esc(u.name)+(isMe?' <span class="muted" style="font-weight:400;font-size:12px">(tú)</span>':'')+'</div>'
+      +'<div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap">'+badges.join('')+'</div></div>'
+      +'<div style="display:flex;gap:6px;flex:none">'
+      +'<button class="ad-mini" title="'+(u.is_admin?'Quitar admin':'Hacer admin')+'" onclick="adToggleAdmin('+u.id+')">'+(u.is_admin?'👤':'👑')+'</button>'
+      +(isMe?'':'<button class="ad-mini ad-del" title="Eliminar" onclick="adDelUser('+u.id+')">🗑️</button>')
+      +'</div></div>';
+  }).join('');
+}
+async function adAddUser(){
+  const inp=document.getElementById('ad-newuser'); const name=(inp.value||'').trim();
+  if(!name){ toast('Escribe un nombre','bad'); return; }
+  const { error }=await sb.rpc('admin_add_user',{ p_name:name });
+  if(error){ toast('Error: '+error.message,'bad'); return; }
+  inp.value=''; toast('Usuario agregado','ok'); adLoadUsers();
+}
+async function adDelUser(id){
+  const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
+  if(!confirm('¿Eliminar a '+u.name+'? Se borran sus pronósticos y no se puede deshacer.')) return;
+  const { error }=await sb.rpc('admin_delete_user',{ p_id:id });
+  if(error){ toast(/NO_SELF/.test(error.message)?'No puedes eliminarte a ti mismo':'Error: '+error.message,'bad'); return; }
+  toast('Usuario eliminado','ok'); adLoadUsers();
+}
+async function adToggleAdmin(id){
+  const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
+  const { error }=await sb.rpc('admin_set_user',{ p_id:id, p_is_admin:!u.is_admin, p_can_submit:u.can_submit, p_active:u.active });
+  if(error){ toast(/NO_SELF_DEMOTE/.test(error.message)?'No puedes quitarte admin a ti mismo':'Error: '+error.message,'bad'); return; }
+  toast(u.is_admin?'Ahora es jugador':'Ahora es admin','ok'); adLoadUsers();
+}
 </script>
 </body>
 </html>

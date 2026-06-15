@@ -596,6 +596,17 @@ function podStep(tier, place){
     +'<div class="pod-pts">'+tier.pts+' pts</div>'
     +'<div class="pod-block '+cls+'">'+place+'</div></div>';
 }
+function fmtCLP(n){ n=Math.round(Number(n)||0); return '$'+n.toLocaleString('es-CL'); }
+function prizePool(){ return [Number(S.config.prize_1)||0, Number(S.config.prize_2)||0, Number(S.config.prize_3)||0]; }
+function hasPrizes(){ return prizePool().some(v=>v>0); }
+function computePrizes(tiers){
+  const pool=prizePool(), out={};
+  tiers.forEach(t=>{ let sum=0; for(let s=t.rank;s<t.rank+t.people.length;s++) sum+=(pool[s-1]||0);
+    const share=t.people.length?sum/t.people.length:0;
+    if(share>0) t.people.forEach(p=>out[p.id]=share);
+  });
+  return out;
+}
 async function loadTabla(){
   const [{ data }, snap] = await Promise.all([
     sb.from('leaderboard').select('*'),
@@ -607,6 +618,7 @@ async function loadTabla(){
   const tiers=rankTiers(rows);
   let ahead=0; tiers.forEach(t=>{ t.rank=ahead+1; ahead+=t.people.length; });
   const rankOf={}; tiers.forEach(t=>t.people.forEach(p=>rankOf[p.id]=t.rank));
+  const prizes=hasPrizes()?computePrizes(tiers):{};
   const byRank=r=>tiers.find(t=>t.rank===r);
   const moveArrow=(id)=>{ const p=prev[id], c=rankOf[id]; if(p==null) return '';
     if(c<p) return ' <span style="color:var(--pitch);font-size:11px" title="subió">▲</span>';
@@ -616,15 +628,21 @@ async function loadTabla(){
   if(tiers[0] && (tiers[0].pts>0 || tiers.length>1)){
     h+='<div class="podium">'+podStep(byRank(2),2)+podStep(byRank(1),1)+podStep(byRank(3),3)+'</div>';
   }
+  if(hasPrizes()){ const pool=prizePool(), tot=pool.reduce((a,b)=>a+b,0);
+    h+='<p class="muted center" style="font-size:12px;margin:-2px 2px 12px">💰 Pozo '+fmtCLP(tot)+' · 1° '+fmtCLP(pool[0])+' · 2° '+fmtCLP(pool[1])+' · 3° '+fmtCLP(pool[2])+'</p>';
+  }
   h+='<div class="card" style="overflow:hidden"><table class="ranktable"><thead><tr><th>#</th><th>Jugador</th><th>Gru</th><th>Eli</th><th>Ext</th><th>Exa</th><th>Total</th></tr></thead><tbody>';
   rows.forEach(r=>{ const me=r.id===S.me.id; const rk=rankOf[r.id]; const g=rk===1?'g1':rk===2?'g2':rk===3?'g3':'';
     h+='<tr class="'+(me?'me':'')+'" style="cursor:pointer" onclick="openPlayer('+r.id+')"><td><span class="pos-badge '+g+'">'+rk+'</span></td>'
-      +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+' <span style="color:var(--muted);font-size:10px">›</span></td>'
+      +'<td>'+esc(r.name)+moveArrow(r.id)+(me?' <span class="muted" style="font-size:11px">(tú)</span>':'')+' <span style="color:var(--muted);font-size:10px">›</span>'
+      +(prizes[r.id]?'<div style="font-size:11px;color:var(--pitch);font-weight:700;margin-top:2px">💰 '+fmtCLP(prizes[r.id])+'</div>':'')
+      +'</td>'
       +'<td class="tnum">'+(r.pts_grupos||0)+'</td><td class="tnum">'+(r.pts_eliminatorias||0)+'</td><td class="tnum">'+(r.pts_bonus||0)+'</td>'
       +'<td class="tnum" style="color:var(--pitch);font-weight:700">'+(r.exact_count||0)+'</td>'
       +'<td class="pts">'+(r.pts_total||0)+'</td></tr>';
   });
-  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. <b style="color:var(--pitch)">Exa</b> = marcadores exactos (desempate entre quienes tienen los mismos puntos). Empatados comparten el puesto; el siguiente salta los ocupados.</p>';
+  h+='</tbody></table></div><p class="muted center" style="font-size:12px;margin-top:10px">▲▼ = cómo cambió la posición hoy. <b style="color:var(--pitch)">Exa</b> = marcadores exactos (desempate entre quienes tienen los mismos puntos). Empatados comparten el puesto; el siguiente salta los ocupados.'
+    +(hasPrizes()?' <b style="color:var(--pitch)">💰</b> = premio si la tabla terminara así ahora (empatados suman los montos de sus puestos y los reparten en partes iguales).':'')+'</p>';
   paint(h);
 }
 
@@ -945,7 +963,26 @@ function filtraEq(){const q=(document.getElementById('eq-q').value||'').toLowerC
 
 function openInfo(){
   const rows=FASE_ORDER.map(f=>{const p=S.phases[f]||{};return '<div>'+esc(p.label||f)+'</div><b class="center">+'+(p.points_exact||'')+'</b><b class="center">+'+(p.points_winner||'')+'</b>';}).join('');
-  document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Cómo se juega</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body"><p class="muted" style="font-size:13px;margin-bottom:16px">Pronostica el marcador exacto. Aciertas más mientras más avanza el torneo.</p><div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 12px;font-size:14px;align-items:center"><div class="eyebrow">Fase</div><div class="eyebrow center">Exacto</div><div class="eyebrow center">Ganador</div>'+rows+'</div><p class="muted" style="font-size:12px;margin-top:16px">Bonus: 🥇 Goleador +5 · ⭐ MVP +5 · 🏁 un finalista +2 · los dos +6.</p></div></div></div>';
+  const bs=Number(S.config.bonus_top_scorer)||5, bm=Number(S.config.bonus_mvp)||5, b1=Number(S.config.bonus_one_finalist)||2, b2=Number(S.config.bonus_both_finalists)||6;
+  const pool=prizePool(), tot=pool.reduce((a,b)=>a+b,0);
+  const premios = hasPrizes()
+    ? '<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;align-items:center"><div>🥇 1° lugar</div><b class="center">'+fmtCLP(pool[0])+'</b><div>🥈 2° lugar</div><b class="center">'+fmtCLP(pool[1])+'</b><div>🥉 3° lugar</div><b class="center">'+fmtCLP(pool[2])+'</b><div class="muted">Pozo total</div><b class="center">'+fmtCLP(tot)+'</b></div>'
+      +'<p class="muted" style="font-size:12px;margin-top:10px">Si dos o más empatan en un puesto (mismos puntos y mismos exactos), <b>suman los montos de los puestos que ocupan y los reparten en partes iguales</b>. Ej: empate en el 1° entre dos → cada uno recibe (1°+2°)÷2 y el siguiente se lleva el 3° completo. La tabla muestra el reparto en vivo con el 💰.</p>'
+    : '<p class="muted" style="font-size:13px">Los montos los define el organizador (aún no cargados). Regla de reparto: si dos o más empatan en un puesto (mismos puntos y exactos), suman los montos de los puestos que ocupan y los reparten en partes iguales; el siguiente toma el puesto que sigue.</p>';
+  document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Cómo se juega</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
+    +'<p class="muted" style="font-size:13px;margin-bottom:16px">Pronostica el <b>marcador exacto</b> de cada partido. Mientras más avanza el torneo, más valen los aciertos.</p>'
+    +'<div class="eyebrow" style="margin-bottom:8px">Puntos por partido</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto auto;gap:8px 12px;font-size:14px;align-items:center"><div class="eyebrow">Fase</div><div class="eyebrow center">Exacto</div><div class="eyebrow center">Ganador</div>'+rows+'</div>'
+    +'<p class="muted" style="font-size:12px;margin-top:8px"><b>Exacto</b>: clavas el marcador (ej. 2-1). <b>Ganador</b>: aciertas quién gana o que es empate, pero no el marcador justo.</p>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Apuestas especiales</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px"><div>🥇 Goleador del torneo</div><b class="center">+'+bs+'</b><div>⭐ MVP del torneo</div><b class="center">+'+bm+'</b><div>🏁 Un finalista correcto</div><b class="center">+'+b1+'</b><div>🏁 Los dos finalistas</div><b class="center">+'+b2+'</b></div>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Desempate</div>'
+    +'<p class="muted" style="font-size:13px">Si hay empate en puntos, va primero quien tenga <b>más marcadores exactos</b>. Si aún siguen iguales, comparten el puesto.</p>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Plazos de envío</div>'
+    +'<p class="muted" style="font-size:13px">Cada fase tiene un plazo límite (antes de su primer partido). Una vez que envías una fase <b>no se puede cambiar</b>. Las fases se van abriendo a medida que avanza el torneo.</p>'
+    +'<div class="eyebrow" style="margin:20px 0 8px">Premios 💰</div>'
+    +premios
+    +'</div></div></div>';
 }
 function closeModal(){document.getElementById('modal-root').innerHTML='';}
 
@@ -960,6 +997,7 @@ async function openAdmin(){
       +'<button class="chip active" data-at="res" onclick="adTab(\'res\')">⚽ Resultados</button>'
       +'<button class="chip" data-at="fase" onclick="adTab(\'fase\')">📅 Fases</button>'
       +'<button class="chip" data-at="vis" onclick="adTab(\'vis\')">👁️ Visibilidad</button>'
+      +'<button class="chip" data-at="premios" onclick="adTab(\'premios\')">💰 Premios</button>'
       +'<button class="chip" data-at="users" onclick="adTab(\'users\')">👥 Usuarios</button>'
     +'</div>'
     +'<div class="at-panel" data-at="res">'
@@ -980,6 +1018,12 @@ async function openAdmin(){
       +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="ad-vis" '+(S.config.predictions_visible?'checked':'')+'> Mostrar pronósticos de todos</label>'
       +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="ad-sub" '+(S.config.submissions_open?'checked':'')+'> Permitir envío definitivo</label>'
       +'<button class="btn ghost" style="width:100%" onclick="adFlags()">Guardar visibilidad</button>'
+    +'</div>'
+    +'<div class="at-panel hidden" data-at="premios">'
+      +'<p class="muted" style="font-size:12px;margin:0 2px 12px">Monto de cada puesto, en pesos. Se reparte en vivo en la Tabla. Si hay empate, los puestos empatados suman sus montos y se dividen en partes iguales. Deja en 0 para no mostrar premios.</p>'
+      +'<div class="grid2"><div class="field"><label>🥇 1° lugar</label><input id="ad-p1" inputmode="numeric" value="'+(Number(S.config.prize_1)||0)+'"></div><div class="field"><label>🥈 2° lugar</label><input id="ad-p2" inputmode="numeric" value="'+(Number(S.config.prize_2)||0)+'"></div></div>'
+      +'<div class="field"><label>🥉 3° lugar</label><input id="ad-p3" inputmode="numeric" value="'+(Number(S.config.prize_3)||0)+'"></div>'
+      +'<button class="btn primary" style="width:100%" onclick="adPrizes()">Guardar premios</button>'
     +'</div>'
     +'<div class="at-panel hidden" data-at="users">'
       +'<div class="field" style="margin-bottom:8px"><label>Nuevo usuario</label><input id="ad-newuser" placeholder="Nombre del nuevo usuario" autocomplete="off"></div>'
@@ -1004,6 +1048,13 @@ async function adPhase(){const { error }=await sb.rpc('enable_phase',{p_phase:do
 async function adFlags(){const { error }=await sb.rpc('set_flags',{p_predictions_visible:document.getElementById('ad-vis').checked,p_submissions_open:document.getElementById('ad-sub').checked});
   if(!error){S.config.predictions_visible=document.getElementById('ad-vis').checked;S.config.submissions_open=document.getElementById('ad-sub').checked;}
   toast(error?'Error':'Guardado',error?'bad':'ok');}
+async function adPrizes(){
+  const p1=Number(document.getElementById('ad-p1').value)||0, p2=Number(document.getElementById('ad-p2').value)||0, p3=Number(document.getElementById('ad-p3').value)||0;
+  const { error }=await sb.rpc('set_prizes',{ p1, p2, p3 });
+  if(error){ toast('Error: '+error.message,'bad'); return; }
+  S.config.prize_1=p1; S.config.prize_2=p2; S.config.prize_3=p3;
+  toast('Premios guardados','ok');
+}
 
 let ADMIN_USERS=[];
 async function adLoadUsers(){

@@ -174,10 +174,11 @@
   #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
   #toast.ok{background:#0C7A48}#toast.bad{background:#A23B4E}
   .modal-back{position:fixed;inset:0;background:rgba(11,25,42,.55);z-index:50;display:grid;place-items:center;padding:18px}
-  .modal{background:var(--surface);border-radius:18px;max-width:440px;width:100%;max-height:82vh;overflow:auto;box-shadow:var(--shadow)}
-  .modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface)}
+  .modal{background:var(--surface);border-radius:18px;max-width:440px;width:100%;max-height:88vh;display:flex;flex-direction:column;overflow:hidden;box-shadow:var(--shadow)}
+  .modal header{display:flex;justify-content:space-between;align-items:center;padding:16px 18px;border-bottom:1px solid var(--line);background:var(--surface);flex:none}
   .modal header h3{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:20px;text-transform:uppercase}
-  .modal .body{padding:18px}
+  .modal .body{padding:18px;overflow-y:auto;flex:1 1 auto;min-height:0;-webkit-overflow-scrolling:touch}
+  .modal-tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
   .empty{padding:40px 18px;text-align:center;color:var(--muted)}.empty .big{font-size:38px;margin-bottom:8px}
   .loader{display:grid;place-items:center;padding:48px}
   .spin{width:34px;height:34px;border:3px solid var(--line);border-top-color:var(--pitch);border-radius:50%;animation:sp .8s linear infinite}
@@ -953,7 +954,7 @@ async function openAdmin(){
   const opts=(fin||[]).map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');return '<option value="'+m.id+'">#'+m.id+' '+esc(a.name)+' vs '+esc(b.name)+'</option>';}).join('');
   const phaseOpts=FASE_ORDER.map(f=>'<option value="'+f+'">'+esc(S.phases[f]?.label||f)+'</option>').join('');
   document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Admin</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
-    +'<div class="phase-row" style="margin-bottom:16px">'
+    +'<div class="modal-tabs">'
       +'<button class="chip active" data-at="res" onclick="adTab(\'res\')">⚽ Resultados</button>'
       +'<button class="chip" data-at="fase" onclick="adTab(\'fase\')">📅 Fases</button>'
       +'<button class="chip" data-at="vis" onclick="adTab(\'vis\')">👁️ Visibilidad</button>'

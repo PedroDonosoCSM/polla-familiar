@@ -953,24 +953,39 @@ async function openAdmin(){
   const opts=(fin||[]).map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');return '<option value="'+m.id+'">#'+m.id+' '+esc(a.name)+' vs '+esc(b.name)+'</option>';}).join('');
   const phaseOpts=FASE_ORDER.map(f=>'<option value="'+f+'">'+esc(S.phases[f]?.label||f)+'</option>').join('');
   document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Admin</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
-    +'<div class="eyebrow" style="margin-bottom:8px">Cargar resultado</div>'
-    +'<div class="field"><select id="ad-m">'+opts+'</select></div>'
-    +'<div class="grid2"><div class="field"><label>Local</label><input id="ad-h" inputmode="numeric"></div><div class="field"><label>Visita</label><input id="ad-a" inputmode="numeric"></div></div>'
-    +'<div class="field"><label>Goleadores local</label><input id="ad-hs" placeholder="opcional"></div>'
-    +'<div class="field"><label>Goleadores visita</label><input id="ad-as" placeholder="opcional"></div>'
-    +'<button class="btn primary" style="width:100%" onclick="adResult()">Guardar resultado</button>'
-    +'<div class="eyebrow" style="margin:22px 0 8px">Habilitar fase</div><div class="field"><select id="ad-ph">'+phaseOpts+'</select></div>'
-    +'<button class="btn ghost" style="width:100%" onclick="adPhase()">Habilitar partidos de la fase</button>'
-    +'<div class="eyebrow" style="margin:22px 0 8px">Visibilidad</div>'
-    +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="ad-vis" '+(S.config.predictions_visible?'checked':'')+'> Mostrar pronósticos de todos</label>'
-    +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="ad-sub" '+(S.config.submissions_open?'checked':'')+'> Permitir envío definitivo</label>'
-    +'<button class="btn ghost" style="width:100%" onclick="adFlags()">Guardar visibilidad</button>'
-    +'<div class="eyebrow" style="margin:22px 0 8px">Mantención de usuarios</div>'
-    +'<div class="field" style="margin-bottom:8px"><input id="ad-newuser" placeholder="Nombre del nuevo usuario" autocomplete="off"></div>'
-    +'<button class="btn primary" style="width:100%" onclick="adAddUser()">➕ Agregar usuario</button>'
-    +'<div id="ad-users" style="margin-top:14px"></div>'
+    +'<div class="phase-row" style="margin-bottom:16px">'
+      +'<button class="chip active" data-at="res" onclick="adTab(\'res\')">⚽ Resultados</button>'
+      +'<button class="chip" data-at="fase" onclick="adTab(\'fase\')">📅 Fases</button>'
+      +'<button class="chip" data-at="vis" onclick="adTab(\'vis\')">👁️ Visibilidad</button>'
+      +'<button class="chip" data-at="users" onclick="adTab(\'users\')">👥 Usuarios</button>'
+    +'</div>'
+    +'<div class="at-panel" data-at="res">'
+      +'<div class="field"><label>Partido</label><select id="ad-m">'+opts+'</select></div>'
+      +'<div class="grid2"><div class="field"><label>Local</label><input id="ad-h" inputmode="numeric"></div><div class="field"><label>Visita</label><input id="ad-a" inputmode="numeric"></div></div>'
+      +'<div class="field"><label>Goleadores local</label><input id="ad-hs" placeholder="opcional"></div>'
+      +'<div class="field"><label>Goleadores visita</label><input id="ad-as" placeholder="opcional"></div>'
+      +'<button class="btn primary" style="width:100%" onclick="adResult()">Guardar resultado</button>'
+    +'</div>'
+    +'<div class="at-panel hidden" data-at="fase">'
+      +'<div class="field"><label>Fase a habilitar</label><select id="ad-ph">'+phaseOpts+'</select></div>'
+      +'<button class="btn ghost" style="width:100%" onclick="adPhase()">Habilitar partidos de la fase</button>'
+    +'</div>'
+    +'<div class="at-panel hidden" data-at="vis">'
+      +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:10px"><input type="checkbox" id="ad-vis" '+(S.config.predictions_visible?'checked':'')+'> Mostrar pronósticos de todos</label>'
+      +'<label style="display:flex;gap:8px;align-items:center;margin-bottom:14px"><input type="checkbox" id="ad-sub" '+(S.config.submissions_open?'checked':'')+'> Permitir envío definitivo</label>'
+      +'<button class="btn ghost" style="width:100%" onclick="adFlags()">Guardar visibilidad</button>'
+    +'</div>'
+    +'<div class="at-panel hidden" data-at="users">'
+      +'<div class="field" style="margin-bottom:8px"><label>Nuevo usuario</label><input id="ad-newuser" placeholder="Nombre del nuevo usuario" autocomplete="off"></div>'
+      +'<button class="btn primary" style="width:100%" onclick="adAddUser()">➕ Agregar usuario</button>'
+      +'<div id="ad-users" style="margin-top:14px"></div>'
+    +'</div>'
     +'</div></div></div>';
   adLoadUsers();
+}
+function adTab(t){
+  document.querySelectorAll('.modal .chip[data-at]').forEach(b=>b.classList.toggle('active',b.dataset.at===t));
+  document.querySelectorAll('.modal .at-panel').forEach(p=>p.classList.toggle('hidden',p.dataset.at!==t));
 }
 async function adResult(){
   const id=Number(document.getElementById('ad-m').value);
@@ -1000,10 +1015,12 @@ async function adLoadUsers(){
     return '<div class="ad-user">'+avatarMarkup(u.id,u.name,34)
       +'<div style="flex:1;min-width:0"><div style="font-weight:600">'+esc(u.name)+(isMe?' <span class="muted" style="font-weight:400;font-size:12px">(tú)</span>':'')+'</div>'
       +'<div style="margin-top:4px;display:flex;gap:5px;flex-wrap:wrap">'+badges.join('')+'</div></div>'
-      +'<div style="display:flex;gap:6px;flex:none">'
-      +'<button class="ad-mini" title="'+(u.is_admin?'Quitar admin':'Hacer admin')+'" onclick="adToggleAdmin('+u.id+')">'+(u.is_admin?'👤':'👑')+'</button>'
-      +(isMe?'':'<button class="ad-mini ad-del" title="Eliminar" onclick="adDelUser('+u.id+')">🗑️</button>')
-      +'</div></div>';
+      +(isMe?'':'<div style="display:flex;gap:6px;flex:none">'
+        +'<button class="ad-mini" title="'+(u.is_admin?'Quitar admin':'Hacer admin')+'" onclick="adToggleAdmin('+u.id+')">'+(u.is_admin?'👤':'👑')+'</button>'
+        +'<button class="ad-mini" title="'+(u.active?'Desactivar (ocultar de la tabla)':'Reactivar')+'" onclick="adToggleActive('+u.id+')">'+(u.active?'🚫':'✅')+'</button>'
+        +'<button class="ad-mini ad-del" title="Eliminar" onclick="adDelUser('+u.id+')">🗑️</button>'
+        +'</div>')
+      +'</div>';
   }).join('');
 }
 async function adAddUser(){
@@ -1023,8 +1040,14 @@ async function adDelUser(id){
 async function adToggleAdmin(id){
   const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
   const { error }=await sb.rpc('admin_set_user',{ p_id:id, p_is_admin:!u.is_admin, p_can_submit:u.can_submit, p_active:u.active });
-  if(error){ toast(/NO_SELF_DEMOTE/.test(error.message)?'No puedes quitarte admin a ti mismo':'Error: '+error.message,'bad'); return; }
+  if(error){ toast(/NO_SELF/.test(error.message)?'No puedes quitarte admin a ti mismo':'Error: '+error.message,'bad'); return; }
   toast(u.is_admin?'Ahora es jugador':'Ahora es admin','ok'); adLoadUsers();
+}
+async function adToggleActive(id){
+  const u=ADMIN_USERS.find(x=>x.id===id); if(!u) return;
+  const { error }=await sb.rpc('admin_set_user',{ p_id:id, p_is_admin:u.is_admin, p_can_submit:u.can_submit, p_active:!u.active });
+  if(error){ toast(/NO_SELF/.test(error.message)?'No puedes desactivarte a ti mismo':'Error: '+error.message,'bad'); return; }
+  toast(u.active?'Desactivado: ya no aparece en la tabla':'Reactivado','ok'); adLoadUsers();
 }
 </script>
 </body>

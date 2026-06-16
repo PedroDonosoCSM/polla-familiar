@@ -993,7 +993,7 @@ async function loadTodos(){
     const fin=groupBy(e=>[{obj:e.finalist1},{obj:e.finalist2}]).sort((a,b)=> b.who.length-a.who.length || a.obj.name.localeCompare(b.obj.name));
 
     h+='<div class="eyebrow" style="margin:20px 2px 8px">Apuestas especiales</div>'
-      +'<p class="muted" style="font-size:12px;margin:-4px 2px 10px">Quién eligió a quién. El 🔥 marca al goleador que va liderando (+'+(S.config.bonus_top_scorer||5)+' pts provisorios).</p>';
+      +'<p class="muted" style="font-size:12px;margin:-4px 2px 10px">Quién eligió a quién. El 🔥 marca al goleador que va liderando; esos +'+(S.config.bonus_top_scorer||5)+' pts se suman recién al terminar la final.</p>';
 
     h+='<div class="bp-cat"><div class="bp-cat-h">🥇 Goleador del torneo</div>';
     if(gol.length) gol.forEach(g=>{ let lab='<span class="bp-name">'+esc(g.obj.name)+'</span>'; if(g.goals>=0) lab+=' <span style="color:var(--pitch);font-weight:700">'+g.goals+'⚽</span>'; if(g.lead) lab+=' 🔥'; h+=betRow(lab,g.who); });
@@ -1072,7 +1072,7 @@ function openInfo(){
     +'<div class="eyebrow" style="margin:20px 0 8px">Predicciones de los demás</div>'
     +'<p class="muted" style="font-size:13px">Se revelan al iniciar cada ronda, o antes si todos ya enviaron sus predicciones de esa ronda.</p>'
     +'<div class="eyebrow" style="margin:20px 0 8px">Ganador y desempate</div>'
-    +'<p class="muted" style="font-size:13px">Gana quien acumule más puntos en todo el Mundial (partidos + especiales). Si hay empate, se ordena por: 1) más marcadores exactos · 2) más ganadores acertados · 3) goleador acertado · 4) más finalistas acertados.</p>'
+    +'<p class="muted" style="font-size:13px">Gana quien acumule más puntos en todo el Mundial (partidos + especiales). Los especiales (goleador, MVP y finalistas) se suman solo al terminar la final. Si hay empate, se ordena por: 1) más marcadores exactos · 2) más ganadores acertados · 3) goleador acertado · 4) más finalistas acertados.</p>'
     +'<div class="eyebrow" style="margin:20px 0 8px">Premios 💰</div>'
     +'<div style="display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px;align-items:center">'+prizeRows+'</div>'
     +'<p class="muted" style="font-size:12px;margin-top:8px">Gift Card para comprar en el Mall. Si dos o más empatan en un puesto, esos puestos suman sus montos y se reparten en partes iguales (la tabla lo muestra en vivo con el 💰).</p>'

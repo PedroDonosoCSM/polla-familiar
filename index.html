@@ -465,7 +465,7 @@ function go(tab){
   if(tab==='equipos')return loadEquipos();
 }
 
-const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
+const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,mvp,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
 async function loadPred(){
   const { data } = await sb.from('matches').select('phase,enabled');
   S.enabledPhases = new Set((data||[]).filter(r=>r.enabled).map(r=>r.phase));
@@ -780,6 +780,9 @@ function resRow(r, mode){
       +'<div style="flex:1;text-align:left">'+scH+'</div>'
       +'<div style="flex:1;text-align:right">'+scA+'</div></div>';
   }
+  if(mode==='fin' && r.mvp){
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+esc(r.mvp)+'</div>';
+  }
   if(mode==='live') h+='<div class="scorers" style="color:var(--hot);font-weight:600;text-align:center">⏱ '+esc(r.live_clock||'En juego')+'</div>';
   h+='<div id="det-'+r.id+'"></div></div>';
   return h;
@@ -1084,6 +1087,9 @@ async function openAdmin(){
   const nowIso=new Date().toISOString();
   const { data:fin } = await sb.from('matches').select(MATCH_COLS).eq('enabled',true).neq('status','FINALIZADO').lte('kickoff_at',nowIso).order('kickoff_at',{ascending:false}).limit(80);
   const pend=fin||[];
+  const { data:recentM } = await sb.from('matches').select('id,status,kickoff_at,mvp,home_label,away_label,home_team:home_team_id(name),away_team:away_team_id(name)').eq('enabled',true).in('status',['FINALIZADO','EN_JUEGO']).order('kickoff_at',{ascending:false}).limit(50);
+  S.mvpMatches=recentM||[];
+  const mvpOpts=(recentM||[]).map(m=>{const a=(m.home_team&&m.home_team.name)||m.home_label||'?';const b=(m.away_team&&m.away_team.name)||m.away_label||'?';return '<option value="'+m.id+'">#'+m.id+' '+esc(a)+' vs '+esc(b)+(m.mvp?' · ⭐ '+esc(m.mvp):'')+'</option>';}).join('');
   const opts=pend.map(m=>{const a=teamOf(m,'home'),b=teamOf(m,'away');const est=m.status==='EN_JUEGO'?('en juego'+(m.live_clock?' '+esc(m.live_clock):'')):'sin cargar';return '<option value="'+m.id+'">#'+m.id+' '+esc(a.name)+' vs '+esc(b.name)+' · '+est+'</option>';}).join('');
   const phaseOpts=FASE_ORDER.map(f=>'<option value="'+f+'">'+esc(S.phases[f]?.label||f)+'</option>').join('');
   document.getElementById('modal-root').innerHTML='<div class="modal-back" onclick="if(event.target===this)closeModal()"><div class="modal"><header><h3>Admin</h3><button class="icon-btn" style="background:#EEF2F0;color:var(--ink)" onclick="closeModal()">✕</button></header><div class="body">'
@@ -1103,6 +1109,14 @@ async function openAdmin(){
           +'<div class="field"><label>Goleadores visita</label><input id="ad-as" placeholder="opcional"></div>'
           +'<button class="btn primary" style="width:100%" onclick="adResult()">Guardar resultado</button>'
         : '<div class="bp-empty" style="text-align:center">✅ Todo al día. La API confirmó todos los partidos jugados; no hay nada que cargar a mano.</div>')
+      +'<div style="border-top:1px solid var(--line);margin:16px 0 12px"></div>'
+      +'<div class="eyebrow" style="margin:0 2px 8px">⭐ MVP del partido</div>'
+      +'<p class="muted" style="font-size:12px;margin:0 2px 12px">Una vez elegido el MVP, cárgalo aquí y aparecerá en Resultados, bajo los goles.</p>'
+      +((S.mvpMatches&&S.mvpMatches.length)
+        ? '<div class="field"><label>Partido</label><select id="ad-mvp-m" onchange="adMvpPick()">'+mvpOpts+'</select></div>'
+          +'<div class="field"><label>MVP (jugador)</label><input list="dl-players" id="ad-mvp-v" placeholder="Nombre del jugador"></div>'
+          +'<button class="btn primary" style="width:100%" onclick="adSetMvp()">Guardar MVP</button>'
+        : '<div class="bp-empty" style="text-align:center">Aún no hay partidos jugados.</div>')
     +'</div>'
     +'<div class="at-panel hidden" data-at="fase">'
       +'<div class="field"><label>Fase a habilitar</label><select id="ad-ph">'+phaseOpts+'</select></div>'
@@ -1126,6 +1140,7 @@ async function openAdmin(){
     +'</div>'
     +'</div></div></div>';
   adLoadUsers();
+  adMvpPick();
 }
 function adTab(t){
   document.querySelectorAll('.modal .chip[data-at]').forEach(b=>b.classList.toggle('active',b.dataset.at===t));
@@ -1137,6 +1152,20 @@ async function adResult(){
   if(isNaN(h)||isNaN(a)){toast('Pon ambos marcadores','bad');return;}
   const { error }=await sb.rpc('set_result',{p_match_id:id,p_home:h,p_away:a,p_home_scorers:document.getElementById('ad-hs').value||null,p_away_scorers:document.getElementById('ad-as').value||null});
   toast(error?('Error: '+error.message):'Resultado guardado',error?'bad':'ok');
+}
+function adMvpPick(){
+  const sel=document.getElementById('ad-mvp-m'); if(!sel) return;
+  const m=(S.mvpMatches||[]).find(x=>String(x.id)===sel.value);
+  const inp=document.getElementById('ad-mvp-v'); if(inp) inp.value=(m&&m.mvp)||'';
+}
+async function adSetMvp(){
+  const sel=document.getElementById('ad-mvp-m'); if(!sel){toast('No hay partidos','bad');return;}
+  const id=Number(sel.value);
+  const v=document.getElementById('ad-mvp-v').value.trim()||null;
+  const { error }=await sb.rpc('set_mvp',{p_match_id:id,p_mvp:v});
+  if(!error){ const m=(S.mvpMatches||[]).find(x=>x.id===id); if(m) m.mvp=v; }
+  toast(error?('Error: '+error.message):'MVP guardado',error?'bad':'ok');
+  if(!error && S.tab==='res') loadResultados();
 }
 async function adPhase(){const { error }=await sb.rpc('enable_phase',{p_phase:document.getElementById('ad-ph').value});toast(error?'Error':'Fase habilitada',error?'bad':'ok');}
 async function adFlags(){const { error }=await sb.rpc('set_flags',{p_predictions_visible:document.getElementById('ad-vis').checked,p_submissions_open:document.getElementById('ad-sub').checked});

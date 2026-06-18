@@ -828,6 +828,9 @@ function jugCard(r, mode, myp){
     let scA=aList.length?aList.map(s=>s+' ⚽').join('<br>'):''; if(missA>0)scA+=(scA?'<br>':'')+'<span style="opacity:.6">+'+missA+' gol s/ detalle</span>';
     if(scH||scA) h+='<div class="jc-scorers"><div style="flex:1;text-align:left">'+scH+'</div><div style="flex:1;text-align:right">'+scA+'</div></div>';
   }
+  if(mode==='fin' && r.mvp){
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:2px 14px 10px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+esc(r.mvp)+'</div>';
+  }
 
   h+='<div class="jc-foot">';
   if(myp){

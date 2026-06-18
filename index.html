@@ -465,7 +465,7 @@ function go(tab){
   if(tab==='equipos')return loadEquipos();
 }
 
-const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,mvp,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
+const MATCH_COLS='id,phase,group_name,kickoff_at,stadium,deadline_at,enabled,status,live_clock,home_goals,away_goals,home_scorers,away_scorers,mvp,mvp_pos,mvp_flag,home_label,away_label,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)';
 async function loadPred(){
   const { data } = await sb.from('matches').select('phase,enabled');
   S.enabledPhases = new Set((data||[]).filter(r=>r.enabled).map(r=>r.phase));
@@ -781,7 +781,8 @@ function resRow(r, mode){
       +'<div style="flex:1;text-align:right">'+scA+'</div></div>';
   }
   if(mode==='fin' && r.mvp){
-    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+esc(r.mvp)+'</div>';
+    var pic={GK:'🧤',DF:'🧱',MF:'⚙️',FW:'🎯'}[r.mvp_pos]||'';
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+r.mvp_flag:'')+'</div>';
   }
   if(mode==='live') h+='<div class="scorers" style="color:var(--hot);font-weight:600;text-align:center">⏱ '+esc(r.live_clock||'En juego')+'</div>';
   h+='<div id="det-'+r.id+'"></div></div>';
@@ -829,7 +830,8 @@ function jugCard(r, mode, myp){
     if(scH||scA) h+='<div class="jc-scorers"><div style="flex:1;text-align:left">'+scH+'</div><div style="flex:1;text-align:right">'+scA+'</div></div>';
   }
   if(mode==='fin' && r.mvp){
-    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:2px 14px 10px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+esc(r.mvp)+'</div>';
+    var pic={GK:'🧤',DF:'🧱',MF:'⚙️',FW:'🎯'}[r.mvp_pos]||'';
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:2px 14px 10px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+r.mvp_flag:'')+'</div>';
   }
 
   h+='<div class="jc-foot">';

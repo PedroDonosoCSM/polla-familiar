@@ -127,6 +127,7 @@
   .jc-body{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:10px;padding:13px 14px 11px}
   .jc-team{display:flex;flex-direction:column;align-items:center;gap:2px;text-align:center;min-width:0}
   .jc-flagimg{width:34px;height:23px;object-fit:cover;border-radius:3px;display:block;box-shadow:0 0 0 1px rgba(0,0,0,.07)}
+  .mvp-flagimg{width:18px;height:12px;object-fit:cover;border-radius:2px;display:inline-block;vertical-align:middle;box-shadow:0 0 0 1px rgba(0,0,0,.08)}
   .jc-name{font-size:12px;color:var(--ink);font-weight:600;line-height:1.15;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
   .jc-score{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:23px;background:var(--ink);color:#fff;padding:6px 15px;border-radius:11px;min-width:60px;text-align:center;letter-spacing:.02em}
   .jc-score.live{background:var(--hot)}
@@ -782,7 +783,7 @@ function resRow(r, mode){
   }
   if(mode==='fin' && r.mvp){
     var pic={GK:'🧤',DF:'🧱',MF:'⚙️',FW:'🎯'}[r.mvp_pos]||'';
-    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+r.mvp_flag:'')+'</div>';
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:0 14px 8px;margin-top:-2px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+flagMini(r.mvp_flag):'')+'</div>';
   }
   if(mode==='live') h+='<div class="scorers" style="color:var(--hot);font-weight:600;text-align:center">⏱ '+esc(r.live_clock||'En juego')+'</div>';
   h+='<div id="det-'+r.id+'"></div></div>';
@@ -802,6 +803,10 @@ function flagImg(flag){
   if(!cps.length) return '';
   const hex=cps.map(c=>c.toString(16)).join('-');
   return '<img class="jc-flagimg" src="https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/svg/'+hex+'.svg" alt="" loading="lazy" onerror="this.style.display=\'none\'">';
+}
+function flagMini(flag){
+  const f=flagImg(flag);
+  return f ? f.replace('class="jc-flagimg"','class="mvp-flagimg"') : '';
 }
 function jcTeam(t){
   return '<div class="jc-team">'+flagImg(t.flag)+'<div class="jc-name">'+esc(t.name)+'</div></div>';
@@ -831,7 +836,7 @@ function jugCard(r, mode, myp){
   }
   if(mode==='fin' && r.mvp){
     var pic={GK:'🧤',DF:'🧱',MF:'⚙️',FW:'🎯'}[r.mvp_pos]||'';
-    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:2px 14px 10px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+r.mvp_flag:'')+'</div>';
+    h+='<div style="text-align:center;font-size:11px;color:var(--muted);padding:2px 14px 10px"><span style="color:var(--pitch);font-weight:700">⭐ MVP:</span> '+(pic?pic+' ':'')+esc(r.mvp)+(r.mvp_flag?' '+flagMini(r.mvp_flag):'')+'</div>';
   }
 
   h+='<div class="jc-foot">';

@@ -191,6 +191,31 @@
   .pp-tag.miss{background:#F0F0F0;color:#888}
   .pp-tag.pend{background:#E8F0FA;color:#3B6EA5}
   .brk-card{background:#fff;border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin-bottom:8px;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;gap:8px}
+
+  /* ===== Bracket (Llave) ===== */
+  .bk-wrap{overflow:auto;max-height:78vh;padding:6px 2px 10px;-webkit-overflow-scrolling:touch}
+  .bk-heads{display:grid;grid-template-columns:repeat(5,156px);column-gap:30px;width:900px;margin-bottom:6px}
+  .bk-h{font-family:'Barlow Condensed',sans-serif;font-weight:700;text-transform:uppercase;letter-spacing:.05em;font-size:13px;color:var(--muted);text-align:center;background:var(--bg);padding:3px 0}
+  .bk-grid{display:grid;grid-template-columns:repeat(5,156px);column-gap:30px;grid-template-rows:repeat(32,29px);width:900px}
+  .bk-cell{position:relative;display:flex;align-items:center}
+  .bk-cell::after{content:"";position:absolute;left:100%;top:50%;width:30px;height:2px;background:var(--line)}
+  .bk-cell::before{content:"";position:absolute;right:100%;top:25%;height:50%;width:2px;background:var(--line)}
+  .bk-c0::before{display:none}
+  .bk-c4::after{display:none}
+  .bk-card{background:var(--surface);border:1px solid var(--line);border-radius:9px;width:100%;display:flex;justify-content:space-between;overflow:hidden;box-shadow:0 1px 2px rgba(17,37,63,.05)}
+  .bk-live{outline:2px solid var(--hot);outline-offset:-1px}
+  .bk-teams{flex:1;min-width:0}
+  .bk-side{display:flex;align-items:center;gap:5px;padding:5px 7px;font-size:12.5px;border-bottom:1px solid var(--line)}
+  .bk-side:last-child{border-bottom:none}
+  .bk-fl{font-size:14px;flex:0 0 auto;line-height:1}
+  .bk-nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:600}
+  .bk-tbd .bk-nm{color:var(--muted);font-weight:500;font-size:11px}
+  .bk-win .bk-nm{font-weight:800}
+  .bk-ck{color:var(--pitch);font-weight:800;margin-left:auto;flex:0 0 auto}
+  .bk-scores{flex:0 0 26px;display:flex;flex-direction:column;border-left:1px solid var(--line);background:#F7F9F8}
+  .bk-sc{flex:1;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .bk-sc:first-child{border-bottom:1px solid var(--line)}
+  .bk-when{flex:1;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--muted);text-align:center;padding:2px;line-height:1.15}
   .login-form{background:var(--surface);border-radius:20px;padding:22px;color:var(--ink);text-align:left;box-shadow:0 20px 50px rgba(0,0,0,.35)}
   .login-form .btn{margin-top:6px;width:100%}
   .form-note{font-size:12px;color:var(--muted);margin-top:12px;text-align:center}
@@ -682,31 +707,54 @@ function koSide(team, label, win){
   const nm = team ? (team.flag+' '+esc(team.name)) : '<span style="color:var(--muted)">'+esc(koHuman(label))+'</span>';
   return '<span style="font-weight:'+(win?'800':'600')+'">'+nm+(win?' ✓':'')+'</span>';
 }
-function brkCard(m){
-  const played = m.status==='FINALIZADO'||m.status==='EN_JUEGO';
-  const center = played ? '<b class="tnum">'+(m.home_goals??0)+'–'+(m.away_goals??0)+'</b>'
-                        : '<span style="color:var(--muted);font-size:11px">'+(fmtFecha(m.kickoff_at)||'vs')+'</span>';
-  const hw=m.winner_team_id&&m.winner_team_id===m.home_team_id, aw=m.winner_team_id&&m.winner_team_id===m.away_team_id;
-  return '<div class="brk-card">'
-    +'<div style="font-size:14px">'+koSide(m.home_team,m.home_label,hw)+'</div>'
-    +'<div style="min-width:54px;text-align:center">'+center+'</div>'
-    +'<div style="font-size:14px;text-align:right">'+koSide(m.away_team,m.away_label,aw)+'</div></div>';
+const BRKT_TREE=[
+  {key:'DIECISEISAVOS',ids:[74,77,73,75,83,84,81,82,76,78,79,80,86,88,85,87]},
+  {key:'OCTAVOS',ids:[89,90,93,94,91,92,95,96]},
+  {key:'CUARTOS',ids:[97,98,99,100]},
+  {key:'SEMIS',ids:[101,102]},
+  {key:'FINAL',ids:[104]}
+];
+const BRKT_SPAN={DIECISEISAVOS:2,OCTAVOS:4,CUARTOS:8,SEMIS:16,FINAL:32};
+function brktSide(team,label,win){
+  if(team) return '<div class="bk-side'+(win?' bk-win':'')+'"><span class="bk-fl">'+(team.flag||'')+'</span><span class="bk-nm">'+esc(team.name)+'</span>'+(win?'<span class="bk-ck">✓</span>':'')+'</div>';
+  return '<div class="bk-side bk-tbd"><span class="bk-nm">'+esc(koHuman(label))+'</span></div>';
 }
-function selKo(f){ S.koRound=f; loadLlave(); }
+function brktCell(m,ci,rowStart,span){
+  const played=m.status==='FINALIZADO'||m.status==='EN_JUEGO';
+  const hw=m.winner_team_id&&m.winner_team_id===m.home_team_id, aw=m.winner_team_id&&m.winner_team_id===m.away_team_id;
+  let sc;
+  if(played) sc='<div class="bk-sc">'+(m.home_goals??0)+'</div><div class="bk-sc">'+(m.away_goals??0)+'</div>';
+  else { const f=fmtFecha(m.kickoff_at); sc='<div class="bk-when">'+(f?f:'vs')+'</div>'; }
+  return '<div class="bk-cell bk-c'+ci+'" style="grid-column:'+(ci+1)+';grid-row:'+rowStart+' / span '+span+'">'
+    +'<div class="bk-card'+(m.status==='EN_JUEGO'?' bk-live':'')+'">'
+    +'<div class="bk-teams">'+brktSide(m.home_team,m.home_label,hw)+brktSide(m.away_team,m.away_label,aw)+'</div>'
+    +'<div class="bk-scores">'+sc+'</div></div></div>';
+}
 async function loadLlave(){
   const { data } = await sb.from('matches')
     .select('id,phase,status,home_goals,away_goals,winner_team_id,home_team_id,away_team_id,home_label,away_label,kickoff_at,home_team:home_team_id(name,flag),away_team:away_team_id(name,flag)')
     .neq('phase','GRUPOS').order('id');
-  const all=data||[];
-  const present=KO_ORDER.filter(f=>all.some(m=>m.phase===f));
-  if(present.length===0) return paint(emptyState('🏆','Llave no disponible','La fase de eliminación aparecerá cuando termine la fase de grupos.'));
-  if(!present.includes(S.koRound)) S.koRound=present[0];
-  const sel=S.koRound;
+  const all=data||[]; const byId={}; all.forEach(m=>byId[m.id]=m);
+  let cells='';
+  BRKT_TREE.forEach((round,ci)=>{
+    const span=BRKT_SPAN[round.key];
+    round.ids.forEach((id,ri)=>{ const m=byId[id]; if(m) cells+=brktCell(m,ci,ri*span+1,span); });
+  });
+  const heads=BRKT_TREE.map(r=>'<div class="bk-h">'+KO_SHORT[r.key]+'</div>').join('');
   let h='<div class="section-head"><div><div class="eyebrow">Eliminatorias</div><h2>La llave</h2></div></div>'
-    +'<p class="muted" style="font-size:12px;margin:-6px 2px 10px">El camino a la final. Se llena solo a medida que avanzan los partidos.</p>';
-  h+='<div class="phase-row">'+present.map(f=>'<button class="chip '+(sel===f?'active':'')+'" onclick="selKo(\''+f+'\')">'+KO_SHORT[f]+'</button>').join('')+'</div>';
-  h+='<div class="eyebrow" style="margin:8px 2px 10px">'+KO_LBL[sel]+'</div>';
-  h+=all.filter(m=>m.phase===sel).map(brkCard).join('');
+    +'<p class="muted" style="font-size:12px;margin:-6px 2px 10px">El camino a la final. Se llena solo a medida que se definen los grupos y avanzan los partidos. Desliza el cuadro → para verlo completo.</p>'
+    +'<div class="bk-wrap"><div class="bk-heads">'+heads+'</div><div class="bk-grid">'+cells+'</div></div>';
+  const t=byId[103];
+  if(t){
+    const played=t.status==='FINALIZADO'||t.status==='EN_JUEGO';
+    const hw=t.winner_team_id&&t.winner_team_id===t.home_team_id, aw=t.winner_team_id&&t.winner_team_id===t.away_team_id;
+    const sc=played?('<b class="tnum">'+(t.home_goals??0)+'–'+(t.away_goals??0)+'</b>'):('<span class="muted" style="font-size:11px">'+(fmtFecha(t.kickoff_at)||'vs')+'</span>');
+    h+='<div class="eyebrow" style="margin:16px 2px 8px">🥉 Tercer lugar</div>'
+      +'<div class="brk-card">'
+      +'<div style="font-size:14px">'+koSide(t.home_team,t.home_label,hw)+'</div>'
+      +'<div style="min-width:54px;text-align:center">'+sc+'</div>'
+      +'<div style="font-size:14px;text-align:right">'+koSide(t.away_team,t.away_label,aw)+'</div></div>';
+  }
   paint(h);
 }
 

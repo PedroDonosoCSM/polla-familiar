@@ -85,6 +85,9 @@
   .stepper-btns button:active{background:var(--pitch);color:#fff}
   .vs{color:var(--muted);font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px}
   .ticket.locked .ticket-body{opacity:.55}.ticket.locked .stepper-btns{display:none}
+  .tk-save{font-size:11px;font-weight:600;text-align:right;padding:2px 14px 10px;min-height:13px;color:var(--muted)}
+  .tk-save.ok{color:var(--pitch)}
+  .tk-save.err{color:var(--hot)}
   .field{margin-bottom:14px}
   .field label{display:block;font-family:'Barlow Condensed',sans-serif;font-weight:600;text-transform:uppercase;letter-spacing:.06em;font-size:13px;margin-bottom:6px}
   .field input,.field select{width:100%;padding:12px 13px;border:1px solid var(--line);border-radius:12px;background:#FBFCFB;color:var(--ink)}
@@ -530,7 +533,8 @@ function renderPred(){
       +'.<br>Valen Exacto +'+ph.points_exact+' · Ganador +'+ph.points_winner+'. ¡Prepárate! 🏆</p></div>';
     return paint(chips+head+card);
   }
-  const enviada=!!S.submissions[fase];
+  const isKO = fase!=='GRUPOS';
+  const enviada=!isKO && !!S.submissions[fase];
   let head='<div class="section-head"><div><div class="eyebrow">Mis pronósticos</div><h2>'+esc(ph.label)+'</h2></div>'
     +(enviada?'<span class="pill sent">✓ Enviado</span>':'<span class="muted" style="font-size:12px">Exacto +'+ph.points_exact+' · Ganador +'+ph.points_winner+'</span>')+'</div>';
   let banner = enviada? '<div class="banner">Ya enviaste esta fase. Tus pronósticos quedaron guardados y no se pueden cambiar.</div>':'';
@@ -554,10 +558,14 @@ function renderPred(){
   let extras = fase==='GRUPOS'? extrasBlock(enviada||lockedByDate(ph.deadline)) : '';
   let actions='';
   if(!enviada){
-    const canSend = S.config.submissions_open || S.me.can_submit;
-    actions='<div class="actions"><button class="btn ghost" onclick="guardar(false)">Guardar borrador</button>'
-      +'<button class="btn send" '+(canSend?'':'disabled')+' onclick="guardar(true)">Enviar definitivo</button></div>'
-      +(canSend?'':'<p class="muted center" style="font-size:12px;margin-top:8px">El envío definitivo se abre cuando el admin lo habilite.</p>');
+    if(isKO){
+      actions='<p class="muted center" style="font-size:12.5px;margin-top:14px;line-height:1.5">💾 Cada pronóstico se guarda solo al cambiarlo. Puedes editar cada partido hasta que arranque — no hay envío definitivo por fase.</p>';
+    } else {
+      const canSend = S.config.submissions_open || S.me.can_submit;
+      actions='<div class="actions"><button class="btn ghost" onclick="guardar(false)">Guardar borrador</button>'
+        +'<button class="btn send" '+(canSend?'':'disabled')+' onclick="guardar(true)">Enviar definitivo</button></div>'
+        +(canSend?'':'<p class="muted center" style="font-size:12px;margin-top:8px">El envío definitivo se abre cuando el admin lo habilite.</p>');
+    }
   }
   paint(chips+head+banner+remind+tickets+extras+actions);
 }
@@ -571,7 +579,9 @@ function ticket(m,lv,vv,locked){
     +'<div class="team"><span class="flag">'+h.flag+'</span><span class="name">'+esc(h.name)+'</span></div>'
     +'<div class="score-pod">'+stepper(m.id,'home',lv,locked)+'<span class="vs">vs</span>'+stepper(m.id,'away',vv,locked)+'</div>'
     +'<div class="team"><span class="flag">'+a.flag+'</span><span class="name">'+esc(a.name)+'</span></div>'
-    +'</div></div>';
+    +'</div>'
+    + ((m.phase!=='GRUPOS' && !locked)?'<div class="tk-save" id="sv-'+m.id+'"></div>':'')
+    +'</div>';
 }
 function stepper(id,side,val,locked){
   const empty=(val==null), digit=empty?'–':String(val);
@@ -585,6 +595,25 @@ function adj(id,side,d){
   S.preds[id][side]=n;
   const el=document.getElementById('d-'+id+'-'+side);
   if(el){el.textContent=(n==null?'–':n);el.classList.toggle('empty',n==null);}
+  if(S.fase!=='GRUPOS') scheduleKoSave(id);
+}
+let _koTimers={};
+function scheduleKoSave(id){
+  const p=S.preds[id]||{}; const el=document.getElementById('sv-'+id);
+  if(p.home==null||p.away==null){ if(el){el.textContent='';el.className='tk-save';} return; }
+  if(el){ el.textContent='Guardando…'; el.className='tk-save saving'; }
+  clearTimeout(_koTimers[id]);
+  _koTimers[id]=setTimeout(()=>koSaveOne(id),700);
+}
+async function koSaveOne(id){
+  const p=S.preds[id]||{}; if(p.home==null||p.away==null) return;
+  const el=document.getElementById('sv-'+id);
+  try{
+    const { data, error } = await sb.rpc('save_predictions',{ p_phase:S.fase, p_items:[{match_id:id,home:p.home,away:p.away}], p_final:false });
+    if(error){ if(el){el.textContent='Error al guardar'; el.className='tk-save err';} return; }
+    if(data!=='OK'){ if(el){el.textContent=traduce(data); el.className='tk-save err';} return; }
+    if(el){ el.textContent='Guardado ✓'; el.className='tk-save ok'; }
+  }catch(e){ if(el){el.textContent='Error al guardar'; el.className='tk-save err'; } }
 }
 function extrasBlock(locked){
   const dis=locked?'disabled':'';
